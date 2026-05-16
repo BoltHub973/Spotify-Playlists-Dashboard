@@ -18,7 +18,11 @@ __pycache__/
 dist/
 build/
 venv/
+.venv/
 env/
+
+# Claude Code worktrees
+.claude/worktrees/
 
 # OS
 .DS_Store

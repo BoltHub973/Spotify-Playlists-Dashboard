@@ -11,10 +11,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var backendManager: BackendManager!
     var hotkeyManager: HotkeyManager!
     var loadingViewController: LoadingViewController?
+    var missingFilesViewController: MissingFilesViewController?
+    var authRequiredViewController: AuthRequiredViewController?
 
     // Internal shortcut state (default Cmd+S: keyCode 1, modifiers 256)
     var internalSidebarKeyCode: UInt32 = 1
     var internalSidebarModifiers: UInt32 = 256
+
+    // Tracks the page the user actually wants when the app is cold-launched.
+    // If an AppleScript "show page X" arrives before the backend is ready,
+    // we stash it here and the auth-ready handler will load X instead of the
+    // default. Set to nil once the initial page has loaded.
+    private var pendingInitialPage: DashboardPage?
+    private var hasLoadedInitialPage = false
 
     private var isMenuBarMode: Bool {
         get { UserDefaults.standard.bool(forKey: "menuBarMode") }
@@ -33,15 +42,28 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Application Lifecycle
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Start the Flask backend
         backendManager = BackendManager()
+
+        // Create and show the main window first so any preflight error is
+        // shown inside the app rather than as an external dialog.
+        createMainWindow()
+        showWindowOnCurrentScreen()
+        buildMenu()
+
+        // Preflight: if required files are missing, show an in-window error
+        // and stop here — the Flask backend would otherwise hang silently.
+        let missing = backendManager.checkRequiredFiles()
+        if !missing.isEmpty, let contentView = mainWindow.contentView {
+            missingFilesViewController = MissingFilesViewController(
+                parentView: contentView,
+                missing: missing,
+                projectRoot: backendManager.projectRoot
+            )
+            return
+        }
+
         backendManager.start()
 
-        // Create the main window
-        createMainWindow()
-
-        // Show the window and loading screen immediately
-        showWindowOnCurrentScreen()
         if let contentView = mainWindow.contentView {
             loadingViewController = LoadingViewController(parentView: contentView)
         }
@@ -68,42 +90,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }) { [weak self] in
             DispatchQueue.main.async {
-                self?.webViewController.loadPage(.playlists)
-                
-                // Poll WebView until the DOM actually contains the rendered playlists
-                func checkWebViewReady(attemptsLeft: Int) {
-                    guard attemptsLeft > 0 else {
-                        // Fallback: dismiss anyway if it takes too long
-                        self?.loadingViewController?.dismiss {
-                            self?.loadingViewController = nil
-                        }
-                        return
-                    }
-                    
-                    let js = "document.getElementById('playlist-grid') ? document.getElementById('playlist-grid').children.length : -1"
-                    self?.webViewController.webView.evaluateJavaScript(js) { (result, error) in
-                        if let count = result as? Int, count > 0 {
-                            // Rendered! Add a tiny grace period for CSS paint
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                self?.loadingViewController?.dismiss {
-                                    self?.loadingViewController = nil
-                                }
-                            }
-                        } else {
-                            // Check again in 200ms
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                                checkWebViewReady(attemptsLeft: attemptsLeft - 1)
-                            }
-                        }
-                    }
-                }
-                
-                // Start checking (give it a max of 50 attempts = 10 seconds)
-                checkWebViewReady(attemptsLeft: 50)
+                self?.checkAuthAndProceed()
             }
         }
 
-        buildMenu()
         loadInternalSidebarShortcut()
 
         // Intercept internal shortcuts cleanly
@@ -130,9 +120,87 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    // MARK: - Auth gating
+
+    /// Check whether the Flask backend reports a valid Spotify token.
+    /// If yes → load dashboard. If no → show in-app auth panel.
+    private func checkAuthAndProceed() {
+        guard let url = URL(string: "http://127.0.0.1:8888/api/auth-status") else {
+            self.loadDashboardAfterAuth()
+            return
+        }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 3.0
+
+        URLSession.shared.dataTask(with: request) { [weak self] data, _, _ in
+            guard let self = self else { return }
+
+            var authenticated = false
+            if let data = data,
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let value = json["authenticated"] as? Bool {
+                authenticated = value
+            }
+
+            DispatchQueue.main.async {
+                if authenticated {
+                    self.loadDashboardAfterAuth()
+                } else {
+                    self.showAuthPanel()
+                }
+            }
+        }.resume()
+    }
+
+    private func showAuthPanel() {
+        // Dismiss loading screen first
+        loadingViewController?.dismiss { [weak self] in
+            self?.loadingViewController = nil
+        }
+
+        guard let contentView = mainWindow.contentView else { return }
+        authRequiredViewController = AuthRequiredViewController(parentView: contentView) { [weak self] in
+            self?.authRequiredViewController = nil
+            self?.loadDashboardAfterAuth()
+        }
+    }
+
+    private func loadDashboardAfterAuth() {
+        let initialPage = pendingInitialPage ?? .playlists
+        pendingInitialPage = nil
+        hasLoadedInitialPage = true
+        webViewController.loadPage(initialPage)
+
+        // Poll WebView until the DOM actually contains the rendered playlists
+        func checkWebViewReady(attemptsLeft: Int) {
+            guard attemptsLeft > 0 else {
+                self.loadingViewController?.dismiss { [weak self] in
+                    self?.loadingViewController = nil
+                }
+                return
+            }
+
+            let js = "document.getElementById('playlist-grid') ? document.getElementById('playlist-grid').children.length : -1"
+            self.webViewController.webView.evaluateJavaScript(js) { [weak self] (result, _) in
+                if let count = result as? Int, count > 0 {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        self?.loadingViewController?.dismiss {
+                            self?.loadingViewController = nil
+                        }
+                    }
+                } else {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                        checkWebViewReady(attemptsLeft: attemptsLeft - 1)
+                    }
+                }
+            }
+        }
+        checkWebViewReady(attemptsLeft: 50)
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
-        hotkeyManager.unregisterAll()
-        backendManager.stop()
+        hotkeyManager?.unregisterAll()
+        backendManager?.stop()
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
@@ -197,9 +265,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Show the window and navigate to a specific page
+    /// Show the window and navigate to a specific page.
+    /// Skips reloading the WebView if the window is already visible on this page —
+    /// so re-running an AppleScript / hotkey for the active page is a no-op
+    /// (just keeps the window front) instead of a full reload.
+    /// If the app is cold-launched and the backend isn't ready yet, the page
+    /// is stashed and loaded once auth completes (avoiding a flash to Playlists).
     func showPage(_ page: DashboardPage) {
-        webViewController.loadPage(page)
+        if !hasLoadedInitialPage {
+            pendingInitialPage = page
+            showWindowOnCurrentScreen()
+            return
+        }
+        let alreadyShowing = mainWindow.isVisible && webViewController.currentPage == page
+        if !alreadyShowing {
+            webViewController.loadPage(page)
+        }
         showWindowOnCurrentScreen()
     }
 

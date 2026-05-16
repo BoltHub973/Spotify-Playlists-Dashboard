@@ -215,6 +215,18 @@ def health():
     else:
         return 'loading', 503
 
+# Auth status endpoint — lets the desktop app check whether the user has a
+# valid Spotify token before trying to load the dashboard in the WebView.
+@app.route('/api/auth-status')
+def auth_status():
+    try:
+        auth_manager = get_auth_manager()
+        token = auth_manager.get_cached_token()
+        authenticated = bool(token) and bool(auth_manager.validate_token(token))
+        return jsonify({"authenticated": authenticated})
+    except Exception as e:
+        return jsonify({"authenticated": False, "error": str(e)}), 200
+
 # ─────────────────────────────────────────────
 # Generic page route — works for any page defined in config.json
 # e.g. /page/playlists, /page/tracker, /page/queue, /page/my-new-page

@@ -13,7 +13,21 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SOURCES_DIR="$SCRIPT_DIR/Sources"
 RESOURCES_DIR="$SCRIPT_DIR/Resources"
-BUILD_DIR="$SCRIPT_DIR/build"
+
+# Resolve the main repo root so builds from a worktree still land in the
+# canonical desktop/SpotifyDashboard/build/ outside the worktree.
+# `git rev-parse --git-common-dir` returns the shared .git dir; its parent is
+# the main working tree's root.
+GIT_COMMON_DIR="$(git -C "$SCRIPT_DIR" rev-parse --git-common-dir 2>/dev/null || true)"
+if [ -n "$GIT_COMMON_DIR" ]; then
+    # Normalize to absolute path, then take its parent
+    GIT_COMMON_DIR="$(cd "$GIT_COMMON_DIR" && pwd)"
+    MAIN_REPO_ROOT="$(dirname "$GIT_COMMON_DIR")"
+    BUILD_DIR="$MAIN_REPO_ROOT/desktop/SpotifyDashboard/build"
+else
+    # Fallback: write next to the script
+    BUILD_DIR="$SCRIPT_DIR/build"
+fi
 APP_NAME="Spotify Dashboard"
 BUNDLE_NAME="SpotifyDashboard"
 APP_BUNDLE="$BUILD_DIR/${APP_NAME}.app"
@@ -52,6 +66,8 @@ SWIFT_FILES=(
     "$SOURCES_DIR/MainWindowController.swift"
     "$SOURCES_DIR/BackendManager.swift"
     "$SOURCES_DIR/LoadingViewController.swift"
+    "$SOURCES_DIR/MissingFilesViewController.swift"
+    "$SOURCES_DIR/AuthRequiredViewController.swift"
     "$SOURCES_DIR/StatusBarController.swift"
     "$SOURCES_DIR/HotkeyManager.swift"
     "$SOURCES_DIR/ShortcutRecorderView.swift"

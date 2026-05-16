@@ -1,5 +1,11 @@
 import Foundation
 
+struct MissingRequiredFile {
+    let name: String
+    let exampleName: String?
+    let purpose: String
+}
+
 class BackendManager {
 
     private var process: Process?
@@ -7,7 +13,7 @@ class BackendManager {
     private let healthURL: URL
 
     /// Path to the project root (where app.py lives)
-    private let projectRoot: String
+    let projectRoot: String
 
     init() {
         self.healthURL = URL(string: "http://127.0.0.1:\(port)/health")!
@@ -54,6 +60,20 @@ class BackendManager {
         }
     }
 
+    /// Check that all files required for the backend to run are present at projectRoot.
+    /// Returns a list of missing files (empty if everything is in place).
+    func checkRequiredFiles() -> [MissingRequiredFile] {
+        let root = URL(fileURLWithPath: projectRoot)
+        let required: [MissingRequiredFile] = [
+            MissingRequiredFile(name: "app.py", exampleName: nil, purpose: "Flask backend entry point"),
+            MissingRequiredFile(name: "config.json", exampleName: "config.example.json", purpose: "Playlist configuration"),
+            MissingRequiredFile(name: ".env", exampleName: ".env.example", purpose: "Spotify API credentials"),
+        ]
+        return required.filter { entry in
+            !FileManager.default.fileExists(atPath: root.appendingPathComponent(entry.name).path)
+        }
+    }
+
     /// Start the Flask backend as a subprocess
     func start() {
         // Check if backend is already running
@@ -70,9 +90,20 @@ class BackendManager {
 
         print("[BackendManager] Starting Flask backend from: \(projectRoot)")
 
+        // Prefer the project's venv Python so we get the installed deps.
+        // Fall back to the system python3 if no venv is present.
+        let venvPython = URL(fileURLWithPath: projectRoot)
+            .appendingPathComponent(".venv/bin/python").path
         let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        proc.arguments = ["python3", "app.py"]
+        if FileManager.default.isExecutableFile(atPath: venvPython) {
+            proc.executableURL = URL(fileURLWithPath: venvPython)
+            proc.arguments = ["app.py"]
+            print("[BackendManager] Using venv Python: \(venvPython)")
+        } else {
+            proc.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+            proc.arguments = ["python3", "app.py"]
+            print("[BackendManager] No venv found; using system python3")
+        }
         proc.currentDirectoryURL = URL(fileURLWithPath: projectRoot)
 
         // Inherit environment (for .env variables via python-dotenv)

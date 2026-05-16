@@ -1,3 +1,5 @@
 flask
 spotipy
 python-dotenv
+Pillow
+requests
