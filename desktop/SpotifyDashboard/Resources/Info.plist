@@ -9,10 +9,15 @@
     <string>Spotify Dashboard</string>
     <key>CFBundleIdentifier</key>
     <string>com.spotifydashboard.app</string>
+    <!-- CFBundleVersion is overwritten by build.sh at build time with a
+         date-based monotonic build number derived from the latest origin/main
+         commit. Source value here is just a placeholder. -->
     <key>CFBundleVersion</key>
-    <string>1.0.1</string>
+    <string>1</string>
+    <!-- CFBundleShortVersionString is the semver, managed by the
+         app-versioning skill. Three period-separated integers. -->
     <key>CFBundleShortVersionString</key>
-    <string>1.0.0</string>
+    <string>1.1.0</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleSignature</key>

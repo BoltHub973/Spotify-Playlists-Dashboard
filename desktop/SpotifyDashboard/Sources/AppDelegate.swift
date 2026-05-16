@@ -13,6 +13,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var loadingViewController: LoadingViewController?
     var missingFilesViewController: MissingFilesViewController?
     var authRequiredViewController: AuthRequiredViewController?
+    private var aboutWindow: NSWindow?
 
     // Internal shortcut state (default Cmd+S: keyCode 1, modifiers 256)
     var internalSidebarKeyCode: UInt32 = 1
@@ -337,7 +338,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // App menu
         let appMenuItem = NSMenuItem()
         let appMenu = NSMenu()
-        appMenu.addItem(withTitle: "About Spotify Dashboard", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        let aboutItem = NSMenuItem(title: "About Spotify Dashboard",
+                                   action: #selector(showAboutPanel),
+                                   keyEquivalent: "")
+        aboutItem.target = self
+        appMenu.addItem(aboutItem)
         appMenu.addItem(NSMenuItem.separator())
         appMenu.addItem(withTitle: "Settings...", action: #selector(openSettings), keyEquivalent: ",")
         appMenu.addItem(NSMenuItem.separator())
@@ -386,6 +391,75 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func openSettings() {
         settingsWindowController.showWindow()
+    }
+
+    @objc func showAboutPanel() {
+        if aboutWindow == nil {
+            aboutWindow = buildAboutWindow()
+        }
+        aboutWindow?.center()
+        NSApp.activate(ignoringOtherApps: true)
+        aboutWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    private func buildAboutWindow() -> NSWindow {
+        let info = Bundle.main.infoDictionary ?? [:]
+        let appName = (info["CFBundleName"] as? String) ?? "Spotify Dashboard"
+        let shortVersion = info["CFBundleShortVersionString"] as? String ?? ""
+        let displayVersion = (info["SpotifyDashboardVersionDisplay"] as? String)
+            ?? (info["CFBundleVersion"] as? String ?? "")
+
+        let win = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 560, height: 520),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        win.title = "About \(appName)"
+        win.isReleasedWhenClosed = false
+        win.titlebarAppearsTransparent = true
+
+        let stack = NSStackView()
+        stack.orientation = .vertical
+        stack.alignment = .centerX
+        stack.spacing = 20
+        stack.edgeInsets = NSEdgeInsets(top: 48, left: 48, bottom: 48, right: 48)
+        stack.translatesAutoresizingMaskIntoConstraints = false
+
+        let iconView = NSImageView()
+        iconView.image = NSApp.applicationIconImage
+        iconView.imageScaling = .scaleProportionallyUpOrDown
+        iconView.translatesAutoresizingMaskIntoConstraints = false
+        iconView.widthAnchor.constraint(equalToConstant: 192).isActive = true
+        iconView.heightAnchor.constraint(equalToConstant: 192).isActive = true
+        stack.addArrangedSubview(iconView)
+
+        let nameLabel = NSTextField(labelWithString: appName)
+        nameLabel.font = NSFont.systemFont(ofSize: 32, weight: .bold)
+        nameLabel.alignment = .center
+        stack.addArrangedSubview(nameLabel)
+
+        let versionLabel = NSTextField(labelWithString: "Version \(shortVersion)")
+        versionLabel.font = NSFont.systemFont(ofSize: 22, weight: .medium)
+        versionLabel.textColor = .labelColor
+        versionLabel.alignment = .center
+        stack.addArrangedSubview(versionLabel)
+
+        let buildLabel = NSTextField(labelWithString: displayVersion)
+        buildLabel.font = NSFont.monospacedSystemFont(ofSize: 17, weight: .regular)
+        buildLabel.textColor = .labelColor
+        buildLabel.alignment = .center
+        stack.addArrangedSubview(buildLabel)
+
+        guard let content = win.contentView else { return win }
+        content.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: content.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: content.trailingAnchor),
+            stack.topAnchor.constraint(equalTo: content.topAnchor),
+            stack.bottomAnchor.constraint(lessThanOrEqualTo: content.bottomAnchor),
+        ])
+        return win
     }
 
     @objc func navigateToPlaylists() {

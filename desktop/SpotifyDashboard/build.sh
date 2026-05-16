@@ -47,6 +47,22 @@ mkdir -p "$APP_BUNDLE/Contents/Resources"
 # Copy Info.plist
 cp "$RESOURCES_DIR/Info.plist" "$APP_BUNDLE/Contents/"
 
+# Stamp commit-derived version metadata into the bundle's Info.plist.
+# CFBundleShortVersionString stays as-is (managed by the app-versioning skill).
+# CFBundleVersion + SpotifyDashboardVersionDisplay are computed from latest origin/main.
+GIT_REF=$(git -C "$SCRIPT_DIR" rev-parse --verify origin/main 2>/dev/null \
+       || git -C "$SCRIPT_DIR" rev-parse --verify main 2>/dev/null \
+       || git -C "$SCRIPT_DIR" rev-parse HEAD)
+GIT_TS_UNIX=$(git -C "$SCRIPT_DIR" log -1 --format='%ct' "$GIT_REF")
+GIT_SHA=$(git -C "$SCRIPT_DIR" rev-parse --short=7 "$GIT_REF")
+BUILD_NUMBER=$(date -r "$GIT_TS_UNIX" +"%Y%m%d.%H%M")
+DISPLAY_VERSION="$(date -r "$GIT_TS_UNIX" +"%m-%d-%y %-I:%M %p") · $GIT_SHA"
+
+PLIST="$APP_BUNDLE/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$PLIST"
+/usr/libexec/PlistBuddy -c "Delete :SpotifyDashboardVersionDisplay" "$PLIST" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Add :SpotifyDashboardVersionDisplay string $DISPLAY_VERSION" "$PLIST"
+
 # Copy AppleScript dictionary
 cp "$RESOURCES_DIR/SpotifyDashboard.sdef" "$APP_BUNDLE/Contents/Resources/"
 
