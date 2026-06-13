@@ -445,11 +445,11 @@ function updateTrackInfo(track) {
   }
 }
 
-// The "NAGA NEXT SHOW" playlist is special — its saved state glows neon purple
-// instead of green. Matched by dashboard name; excludes "NAGA NEXT SHOW - PACK".
-function isNagaNextShow(playlist) {
+// The NAGA playlists ("NAGA NEXT SHOW" and "NAGA NEXT SHOW - PACK") are special:
+// they get a premium holographic treatment instead of the standard green tile.
+function isSpecialPlaylist(playlist) {
   const name = (playlist && playlist.name ? playlist.name : "").toUpperCase();
-  return name.includes("NAGA NEXT SHOW") && !name.includes("PACK");
+  return name.includes("NAGA NEXT SHOW");
 }
 
 function renderPlaylists() {
@@ -475,7 +475,7 @@ function renderPlaylists() {
     item.className = "playlist-item";
     if (isActive) item.classList.add("active");
     if (justSaved) item.classList.add("just-saved");
-    if (isNagaNextShow(playlist)) item.classList.add("naga-show");
+    if (isSpecialPlaylist(playlist)) item.classList.add("naga-special");
 
     // Use ID for toggling
     item.onclick = () => togglePlaylist(playlist);
