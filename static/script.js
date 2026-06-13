@@ -2,6 +2,7 @@
 let currentTrack = null;
 let allPlaylists = [];
 let activePlaylistsMap = new Set(); // Set of Playlist IDs that contain the current track
+let justSavedId = null; // Playlist ID that was just saved — gets a one-shot "save" animation
 let colorCache = {}; // Cache extracted colors by track ID
 
 // Load color cache from localStorage
@@ -463,7 +464,8 @@ function renderPlaylists() {
     const isActive = activePlaylistsMap.has(playlist.id);
 
     const item = document.createElement("div");
-    item.className = `playlist-item ${isActive ? "active" : ""}`;
+    const justSaved = isActive && playlist.id === justSavedId;
+    item.className = `playlist-item ${isActive ? "active" : ""} ${justSaved ? "just-saved" : ""}`;
 
     // Use ID for toggling
     item.onclick = () => togglePlaylist(playlist);
@@ -545,6 +547,9 @@ function renderPlaylists() {
       grid.appendChild(inactiveGroup);
     }
   }
+
+  // One-shot save animation should only play on the render right after a save.
+  justSavedId = null;
 }
 
 async function togglePlaylist(playlist) {
@@ -557,6 +562,7 @@ async function togglePlaylist(playlist) {
   // Optimistic Update
   if (action === "add") {
     activePlaylistsMap.add(playlist.id);
+    justSavedId = playlist.id; // trigger one-shot "just saved" animation on render
   } else {
     activePlaylistsMap.delete(playlist.id);
   }
