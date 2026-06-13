@@ -28,9 +28,22 @@ else
     # Fallback: write next to the script
     BUILD_DIR="$SCRIPT_DIR/build"
 fi
+
+# The repo root the installed app should run app.py / serve static files from.
+# Prefer the main working tree (so a worktree build still points at the canonical
+# checkout); fall back to two levels up from this script (repo root).
+if [ -n "$MAIN_REPO_ROOT" ]; then
+    PROJECT_ROOT_STAMP="$MAIN_REPO_ROOT"
+else
+    PROJECT_ROOT_STAMP="$(cd "$SCRIPT_DIR/../.." && pwd)"
+fi
+
 APP_NAME="Spotify Dashboard"
 BUNDLE_NAME="SpotifyDashboard"
+# Build into a staging dir, then install to /Applications (the canonical home).
 APP_BUNDLE="$BUILD_DIR/${APP_NAME}.app"
+INSTALL_DIR="/Applications"
+INSTALLED_APP="$INSTALL_DIR/${APP_NAME}.app"
 
 echo "=== Building ${APP_NAME} ==="
 echo ""
@@ -62,6 +75,12 @@ PLIST="$APP_BUNDLE/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$PLIST"
 /usr/libexec/PlistBuddy -c "Delete :SpotifyDashboardVersionDisplay" "$PLIST" 2>/dev/null || true
 /usr/libexec/PlistBuddy -c "Add :SpotifyDashboardVersionDisplay string $DISPLAY_VERSION" "$PLIST"
+
+# Stamp the project root so the app can find app.py / static/ even when launched
+# from /Applications (where the bundle-relative path no longer resolves to the repo).
+# BackendManager reads this as a fallback after the SPOTIFY_DASHBOARD_PATH env var.
+/usr/libexec/PlistBuddy -c "Delete :SpotifyDashboardProjectRoot" "$PLIST" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Add :SpotifyDashboardProjectRoot string $PROJECT_ROOT_STAMP" "$PLIST"
 
 # Copy AppleScript dictionary
 cp "$RESOURCES_DIR/SpotifyDashboard.sdef" "$APP_BUNDLE/Contents/Resources/"
@@ -102,13 +121,28 @@ swiftc \
     "${SWIFT_FILES[@]}"
 
 # Ad-hoc code sign
-echo "[3/4] Code signing..."
+echo "[3/5] Code signing..."
 codesign --force --sign - "$APP_BUNDLE"
 
-echo "[4/4] Build complete!"
+# Install into /Applications (the canonical, permanent location).
+# Replacing a running bundle is safe — the live process keeps its open files and
+# the new copy is used on next launch.
+echo "[4/5] Installing to ${INSTALL_DIR}..."
+if rm -rf "$INSTALLED_APP" 2>/dev/null && ditto "$APP_BUNDLE" "$INSTALLED_APP" 2>/dev/null; then
+    codesign --force --sign - "$INSTALLED_APP" 2>/dev/null || true
+    echo "Installed: $INSTALLED_APP"
+    FINAL_APP="$INSTALLED_APP"
+else
+    echo "WARNING: could not write to ${INSTALL_DIR} (admin rights may be required)."
+    echo "         The built app is available at: $APP_BUNDLE"
+    echo "         To install manually: sudo ditto \"$APP_BUNDLE\" \"$INSTALLED_APP\""
+    FINAL_APP="$APP_BUNDLE"
+fi
+
+echo "[5/5] Build complete!"
 echo ""
-echo "App bundle: $APP_BUNDLE"
-echo "Size: $(du -sh "$APP_BUNDLE" | cut -f1)"
+echo "App bundle: $FINAL_APP"
+echo "Size: $(du -sh "$FINAL_APP" | cut -f1)"
 echo ""
-echo "To run: open \"$APP_BUNDLE\""
+echo "To run: open \"$FINAL_APP\""
 echo "Or use: ./run.sh (from the desktop/ directory)"

@@ -19,11 +19,17 @@ class BackendManager {
         self.healthURL = URL(string: "http://127.0.0.1:\(port)/health")!
 
         // Determine project root:
-        // 1. Check SPOTIFY_DASHBOARD_PATH environment variable
-        // 2. Fall back to the directory containing the .app bundle's grandparent
-        // 3. Fall back to current working directory
+        // 1. Check SPOTIFY_DASHBOARD_PATH environment variable (dev/run.sh override)
+        // 2. Use the SpotifyDashboardProjectRoot stamped into Info.plist at build
+        //    time (the reliable source when launched from /Applications)
+        // 3. Fall back to the directory containing the .app bundle's grandparent
+        // 4. Fall back to current working directory
         if let envPath = ProcessInfo.processInfo.environment["SPOTIFY_DASHBOARD_PATH"] {
             self.projectRoot = envPath
+        } else if let stamped = Bundle.main.object(forInfoDictionaryKey: "SpotifyDashboardProjectRoot") as? String,
+                  !stamped.isEmpty,
+                  FileManager.default.fileExists(atPath: URL(fileURLWithPath: stamped).appendingPathComponent("app.py").path) {
+            self.projectRoot = stamped
         } else {
             // The app is expected to be at: <project>/desktop/SpotifyDashboard/build/SpotifyDashboard.app
             // So project root is 4 levels up from the .app bundle

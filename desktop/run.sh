@@ -10,7 +10,8 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-APP_BUNDLE="$SCRIPT_DIR/SpotifyDashboard/build/Spotify Dashboard.app"
+# build.sh installs the app here (the canonical, permanent location).
+APP_BUNDLE="/Applications/Spotify Dashboard.app"
 
 # Export project root so the app can find app.py
 export SPOTIFY_DASHBOARD_PATH="$PROJECT_ROOT"

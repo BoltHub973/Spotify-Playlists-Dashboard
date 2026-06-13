@@ -18,7 +18,7 @@ killall "Spotify Dashboard"
 lsof -i :8888 -t | xargs kill -9
 ```
 
-3. Open the compiled Desktop application.
+3. Open the compiled Desktop application (installed in /Applications by build.sh).
 ```bash
-open "/Users/adriangrant/Dropbox/ClawHQ/Dev Work/Spotify-Playlists-Dashboard/desktop/SpotifyDashboard/build/Spotify Dashboard.app"
+open "/Applications/Spotify Dashboard.app"
 ```
