@@ -323,7 +323,6 @@ function updateTrackInfo(track) {
   const visualizer = document.querySelector(".visualizer");
   const nothingPlayingMsg = document.getElementById("nothing-playing");
   const repeatIcon = document.getElementById("repeat-icon");
-  const playCount = document.getElementById("play-count");
 
   if (track) {
     // Universal: Update Album Cover
@@ -336,18 +335,9 @@ function updateTrackInfo(track) {
       // Queue page: show album name
       if (title) title.textContent = track.album || "Unknown Album";
     } else {
-      // Other pages: show track title, artist, and play count
+      // Other pages: show track title and artist
       if (title) title.textContent = track.name;
       if (artist) artist.textContent = track.artist;
-
-      if (playCount) {
-        if (track.popularity !== undefined) {
-          playCount.textContent = track.popularity >= 40 ? `${track.popularity} ⚡️` : track.popularity;
-          playCount.style.display = "inline-flex";
-        } else {
-          playCount.style.display = "none";
-        }
-      }
     }
 
     // Extract dominant color and update background
@@ -373,9 +363,11 @@ function updateTrackInfo(track) {
     if (repeatIcon) {
       repeatIcon.style.display = "block";
 
-      // Update UI from track payload, but ignore if we recently clicked it (optimistic lock)
+      // Update UI from track payload, but ignore if we recently clicked it (optimistic lock).
+      // Only illuminate for single-track repeat ("track"). Album/context repeat
+      // ("context") and "off" both leave the icon dim — the button toggles repeat-one.
       if (!repeatIcon.hasAttribute("data-optimistic-lock")) {
-        if (track.repeat_state === "track" || track.repeat_state === "context") {
+        if (track.repeat_state === "track") {
           repeatIcon.classList.add("active");
         } else {
           repeatIcon.classList.remove("active");
@@ -430,7 +422,6 @@ function updateTrackInfo(track) {
     } else {
       if (title) title.textContent = "Not Playing";
       if (artist) artist.textContent = "Play a song on Spotify";
-      if (playCount) playCount.style.display = "none";
     }
     if (visualizer) {
       visualizer.classList.remove("is-playing", "is-paused");
