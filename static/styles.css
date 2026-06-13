@@ -309,20 +309,43 @@ body {
    reads as "this track is in this playlist."
    ======================================== */
 .playlist-item.active {
+  /* Accent palette as raw "r, g, b" triples so rgba(var(--x), a) works.
+     Neon green by default; .naga-show.active overrides these to purple. */
+  --accent: 132, 255, 0;
+  --accent-top: 120, 230, 0;
+  --accent-bot: 74, 175, 0;
+  --accent-top-hover: 140, 255, 20;
+  --accent-bot-hover: 90, 200, 0;
+  --accent-sheen: 180, 255, 120;
+  --accent-bright: 170, 255, 60;
+  --accent-shadow: 0, 60, 0;
+
   background:
     linear-gradient(
       135deg,
-      rgba(120, 230, 0, 0.95) 0%,
-      rgba(74, 175, 0, 0.92) 100%
+      rgba(var(--accent-top), 0.95) 0%,
+      rgba(var(--accent-bot), 0.92) 100%
     );
-  border: 2px solid var(--neon-green);
+  border: 2px solid rgb(var(--accent));
   position: relative;
   overflow: hidden;
   z-index: 1;
   box-shadow:
-    inset 0 0 18px rgba(180, 255, 120, 0.4),
-    0 0 22px rgba(132, 255, 0, 0.7),
-    0 0 48px rgba(132, 255, 0, 0.45);
+    inset 0 0 18px rgba(var(--accent-sheen), 0.4),
+    0 0 22px rgba(var(--accent), 0.7),
+    0 0 48px rgba(var(--accent), 0.45);
+}
+
+/* NAGA NEXT SHOW is special: saved tracks glow neon purple, not green. */
+.playlist-item.naga-show.active {
+  --accent: 188, 19, 254;
+  --accent-top: 170, 30, 235;
+  --accent-bot: 108, 12, 170;
+  --accent-top-hover: 200, 60, 255;
+  --accent-bot-hover: 130, 20, 200;
+  --accent-sheen: 220, 150, 255;
+  --accent-bright: 210, 90, 255;
+  --accent-shadow: 30, 0, 50;
 }
 
 .playlist-item.active:hover {
@@ -330,8 +353,8 @@ body {
   background:
     linear-gradient(
       135deg,
-      rgba(140, 255, 20, 1) 0%,
-      rgba(90, 200, 0, 0.96) 100%
+      rgba(var(--accent-top-hover), 1) 0%,
+      rgba(var(--accent-bot-hover), 0.96) 100%
     );
 }
 
@@ -339,7 +362,7 @@ body {
   /* White text matches the saved-tile target design */
   color: #ffffff;
   text-shadow:
-    0 1px 3px rgba(0, 60, 0, 0.55),
+    0 1px 3px rgba(var(--accent-shadow), 0.55),
     0 0 10px rgba(255, 255, 255, 0.35);
   font-weight: 700;
 }
@@ -373,13 +396,13 @@ body {
 /* White checkmark to match the saved-tile target design */
 .playlist-item.active .status-indicator svg {
   fill: #ffffff;
-  filter: drop-shadow(0 1px 2px rgba(0, 60, 0, 0.5));
+  filter: drop-shadow(0 1px 2px rgba(var(--accent-shadow), 0.5));
 }
 
 @keyframes pulse-green {
   0% {
     transform: scale(1);
-    filter: drop-shadow(0 1px 2px rgba(0, 60, 0, 0.5));
+    filter: drop-shadow(0 1px 2px rgba(var(--accent-shadow), 0.5));
   }
   50% {
     transform: scale(1.2);
@@ -387,32 +410,32 @@ body {
   }
   100% {
     transform: scale(1);
-    filter: drop-shadow(0 1px 2px rgba(0, 60, 0, 0.5));
+    filter: drop-shadow(0 1px 2px rgba(var(--accent-shadow), 0.5));
   }
 }
 
 /* Active item glowing border animation — a slow "breathing" glow */
 @keyframes border-pulse {
   0% {
-    border-color: rgba(132, 255, 0, 0.85);
+    border-color: rgba(var(--accent), 0.85);
     box-shadow:
-      inset 0 0 18px rgba(180, 255, 120, 0.45),
-      0 0 22px rgba(132, 255, 0, 0.7),
-      0 0 48px rgba(132, 255, 0, 0.45);
+      inset 0 0 18px rgba(var(--accent-sheen), 0.45),
+      0 0 22px rgba(var(--accent), 0.7),
+      0 0 48px rgba(var(--accent), 0.45);
   }
   50% {
-    border-color: rgba(170, 255, 60, 1);
+    border-color: rgba(var(--accent-bright), 1);
     box-shadow:
-      inset 0 0 26px rgba(200, 255, 140, 0.6),
-      0 0 34px rgba(132, 255, 0, 0.95),
-      0 0 64px rgba(132, 255, 0, 0.65);
+      inset 0 0 26px rgba(var(--accent-sheen), 0.6),
+      0 0 34px rgba(var(--accent), 0.95),
+      0 0 64px rgba(var(--accent), 0.65);
   }
   100% {
-    border-color: rgba(132, 255, 0, 0.85);
+    border-color: rgba(var(--accent), 0.85);
     box-shadow:
-      inset 0 0 18px rgba(180, 255, 120, 0.45),
-      0 0 22px rgba(132, 255, 0, 0.7),
-      0 0 48px rgba(132, 255, 0, 0.45);
+      inset 0 0 18px rgba(var(--accent-sheen), 0.45),
+      0 0 22px rgba(var(--accent), 0.7),
+      0 0 48px rgba(var(--accent), 0.45);
   }
 }
 
@@ -456,9 +479,9 @@ body {
   35% {
     transform: scale(1.07);
     box-shadow:
-      inset 0 0 30px rgba(220, 255, 160, 0.7),
-      0 0 40px rgba(132, 255, 0, 1),
-      0 0 80px rgba(132, 255, 0, 0.8);
+      inset 0 0 30px rgba(var(--accent-sheen), 0.7),
+      0 0 40px rgba(var(--accent), 1),
+      0 0 80px rgba(var(--accent), 0.8);
   }
   100% {
     transform: scale(1);
