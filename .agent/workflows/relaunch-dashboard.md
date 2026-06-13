@@ -8,9 +8,11 @@ Use this workflow to safely restart the Spotify Dashboard desktop application wh
 The python backend often detaches into a ghost process if the macOS Swift application is killed unexpectedly. This workflow ensures the backend port `8888` is forcefully freed before launching the app again.
 
 // turbo-all
-1. Forcefully kill the Swift wrapper app.
+1. Forcefully kill the Swift wrapper app. The process name is the executable
+   basename `SpotifyDashboard` (no space) — `killall "Spotify Dashboard"` matches
+   nothing.
 ```bash
-killall "Spotify Dashboard"
+killall SpotifyDashboard
 ```
 
 2. Forcefully kill any ghost Python instances still bound to port `8888`.
