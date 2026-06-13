@@ -20,8 +20,9 @@ RESOURCES_DIR="$SCRIPT_DIR/Resources"
 # the main working tree's root.
 GIT_COMMON_DIR="$(git -C "$SCRIPT_DIR" rev-parse --git-common-dir 2>/dev/null || true)"
 if [ -n "$GIT_COMMON_DIR" ]; then
-    # Normalize to absolute path, then take its parent
-    GIT_COMMON_DIR="$(cd "$GIT_COMMON_DIR" && pwd)"
+    # --git-common-dir is printed relative to SCRIPT_DIR (git's -C dir), so resolve
+    # it from there — not from the caller's cwd, which may be anywhere.
+    GIT_COMMON_DIR="$(cd "$SCRIPT_DIR" && cd "$GIT_COMMON_DIR" && pwd)"
     MAIN_REPO_ROOT="$(dirname "$GIT_COMMON_DIR")"
     BUILD_DIR="$MAIN_REPO_ROOT/desktop/SpotifyDashboard/build"
 else
