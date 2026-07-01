@@ -1,3 +1,20 @@
+// ── Auth recovery ─────────────────────────────────────────────────────────
+// Spotify refresh tokens now expire ~6 months after the user first authorized
+// (enforced for existing apps on 2026-07-20). Once the backend can no longer
+// refresh, its API routes return 401. Intercept those globally and send the
+// user back through the login flow instead of leaving the UI silently broken.
+let redirectingToLogin = false;
+const _origFetch = window.fetch.bind(window);
+window.fetch = async (...args) => {
+  const res = await _origFetch(...args);
+  if (res.status === 401 && !redirectingToLogin) {
+    redirectingToLogin = true;
+    console.warn("Spotify session expired — redirecting to login.");
+    window.location.href = "/login";
+  }
+  return res;
+};
+
 // State
 let currentTrack = null;
 let allPlaylists = [];

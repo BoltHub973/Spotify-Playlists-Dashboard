@@ -8,6 +8,7 @@ load_dotenv()
 try:
     import spotipy
     from spotipy.oauth2 import SpotifyOAuth
+    from spotipy.exceptions import SpotifyOauthError
 except ImportError:
     print("Error: 'spotipy' library is not installed.")
     print("Please install it using: pip install spotipy")
@@ -70,6 +71,18 @@ def main():
         ))
         user_id = sp.current_user()['id']
         print(f"Authenticated as user: {user_id}")
+    except SpotifyOauthError as e:
+        # Refresh tokens now expire ~6 months after authorization (400 invalid_grant).
+        print("\n⚠️  Your Spotify login has expired (refresh tokens now expire ~6 months after authorization).")
+        try:
+            cache_path = sp.auth_manager.cache_handler.cache_path
+            if os.path.exists(cache_path):
+                os.remove(cache_path)
+                print(f"Cleared the expired token ({cache_path}).")
+        except Exception:
+            pass
+        print("Re-run this script to sign in again.")
+        return
     except Exception as e:
         print(f"Authentication failed: {e}")
         print("Please check your credentials and try again.")

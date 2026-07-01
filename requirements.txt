@@ -1,5 +1,5 @@
 flask
-spotipy
+spotipy>=2.26.0  # refresh-token invalid_grant handling relies on SpotifyOauthError + CacheFileHandler.cache_path
 python-dotenv
 Pillow
 requests

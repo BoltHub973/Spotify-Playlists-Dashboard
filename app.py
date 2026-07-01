@@ -5,6 +5,7 @@ import threading
 from flask import Flask, jsonify, request, send_from_directory, redirect, session
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
+from spotipy.exceptions import SpotifyOauthError
 from dotenv import load_dotenv
 from PIL import Image
 import requests
@@ -23,6 +24,37 @@ def get_auth_manager():
     return SpotifyOAuth(scope=SCOPE, open_browser=False, show_dialog=True)
 
 sp = spotipy.Spotify(auth_manager=get_auth_manager(), requests_timeout=10, status_retries=0, retries=0)
+
+
+def clear_cached_token():
+    """Discard the cached Spotify token so the next request forces a fresh login."""
+    try:
+        cache_path = get_auth_manager().cache_handler.cache_path
+        if os.path.exists(cache_path):
+            os.remove(cache_path)
+            print(f"Cleared cached Spotify token at {cache_path}.")
+    except Exception as e:
+        print(f"Warning: could not clear cached token: {e}")
+
+
+def is_authenticated():
+    """Return True if a valid Spotify token is available (refreshing if needed).
+
+    As of Spotify's 6-month refresh-token expiration (enforced for existing apps
+    on 2026-07-20), a refresh token can expire and the token endpoint returns
+    400 invalid_grant, which spotipy raises as SpotifyOauthError. Per Spotify's
+    guidance we catch it, do NOT retry, discard the dead token, and report
+    unauthenticated so callers can send the user back through the login flow.
+    """
+    auth_manager = get_auth_manager()
+    try:
+        return bool(auth_manager.validate_token(auth_manager.get_cached_token()))
+    except SpotifyOauthError as e:
+        reason = getattr(e, 'error', None) or e
+        print(f"Spotify refresh token expired/invalid ({reason}); clearing token for re-login.")
+        clear_cached_token()
+        return False
+
 
 # Global state populated from config.json
 app_config = {}                  # The loaded config dict
@@ -183,10 +215,8 @@ def safe_load_playlists():
             print("No pages defined in config. Nothing to load.")
             return
 
-        auth_manager = get_auth_manager()
-        token = auth_manager.get_cached_token()
-        if token:
-            print(f"Token found. Loading playlists... (expires: {token.get('expires_at', 'unknown')})")
+        if is_authenticated():
+            print("Valid token found. Loading playlists...")
             spotify_playlists = fetch_all_user_playlists()
             if spotify_playlists is not None:
                 load_all_pages(spotify_playlists)
@@ -220,10 +250,7 @@ def health():
 @app.route('/api/auth-status')
 def auth_status():
     try:
-        auth_manager = get_auth_manager()
-        token = auth_manager.get_cached_token()
-        authenticated = bool(token) and bool(auth_manager.validate_token(token))
-        return jsonify({"authenticated": authenticated})
+        return jsonify({"authenticated": is_authenticated()})
     except Exception as e:
         return jsonify({"authenticated": False, "error": str(e)}), 200
 
@@ -233,8 +260,7 @@ def auth_status():
 # ─────────────────────────────────────────────
 @app.route('/page/<page_id>')
 def serve_page(page_id):
-    auth_manager = get_auth_manager()
-    if not auth_manager.validate_token(auth_manager.get_cached_token()):
+    if not is_authenticated():
         return redirect('/login')
     # Look up the HTML file for this page from config
     page_cfg = next((p for p in app_config.get('pages', []) if p['id'] == page_id), None)
@@ -258,8 +284,7 @@ def get_page_playlists_api(page_id):
 # ─────────────────────────────────────────────
 @app.route('/')
 def index():
-    auth_manager = get_auth_manager()
-    if not auth_manager.validate_token(auth_manager.get_cached_token()):
+    if not is_authenticated():
         return redirect('/login')
     response = send_from_directory('static', 'playlists.html')
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
@@ -296,7 +321,13 @@ def callback():
     auth_manager = get_auth_manager()
     code = request.args.get('code')
     if code:
-        auth_manager.get_access_token(code)
+        try:
+            auth_manager.get_access_token(code)
+        except SpotifyOauthError as e:
+            # Bad/expired authorization code — clear any stale token and re-login.
+            print(f"Authorization code exchange failed ({getattr(e, 'error', None) or e}); redirecting to login.")
+            clear_cached_token()
+            return redirect('/login')
         # Reload playlists after successful authentication
         load_config()
         spotify_playlists = fetch_all_user_playlists()
@@ -315,8 +346,7 @@ def serve_static(path):
 
 @app.route('/api/current-track')
 def get_current_track():
-    auth_manager = get_auth_manager()
-    if not auth_manager.validate_token(auth_manager.get_cached_token()):
+    if not is_authenticated():
         return jsonify({"error": "Not authenticated"}), 401
 
     try:
@@ -382,8 +412,7 @@ def check_playlists():
     if not track_uri:
         return jsonify([])
 
-    auth_manager = get_auth_manager()
-    if not auth_manager.validate_token(auth_manager.get_cached_token()):
+    if not is_authenticated():
         return jsonify({"error": "Not authenticated"}), 401
 
     # Standardize to URI
@@ -464,8 +493,7 @@ def get_extracted_color():
 
 @app.route('/api/toggle-repeat', methods=['POST'])
 def toggle_repeat():
-    auth_manager = get_auth_manager()
-    if not auth_manager.validate_token(auth_manager.get_cached_token()):
+    if not is_authenticated():
         return jsonify({"error": "Not authenticated"}), 401
     
     data = request.json
@@ -487,9 +515,12 @@ def toggle_playlist():
     playlist_id = data.get('playlist_id')
     track_uri = data.get('track_uri')
     action = data.get('action') # 'add' or 'remove'
-    
+
     if not all([playlist_id, track_uri, action]):
         return jsonify({"error": "Missing data"}), 400
+
+    if not is_authenticated():
+        return jsonify({"error": "Not authenticated"}), 401
 
     try:
         if action == 'add':
@@ -553,9 +584,12 @@ def toggle_album_playlist():
     playlist_id = data.get('playlist_id')
     album_id = data.get('album_id')
     action = data.get('action')  # 'add' or 'remove'
-    
+
     if not all([playlist_id, album_id, action]):
         return jsonify({"error": "Missing data"}), 400
+
+    if not is_authenticated():
+        return jsonify({"error": "Not authenticated"}), 401
 
     try:
         # Get all tracks from the album
@@ -619,8 +653,7 @@ def get_artist_latest_release():
     if not artist_name:
         return jsonify({"error": "Missing artist_name"}), 400
 
-    auth_manager = get_auth_manager()
-    if not auth_manager.validate_token(auth_manager.get_cached_token()):
+    if not is_authenticated():
         return jsonify({"error": "Not authenticated"}), 401
 
     try:
@@ -765,8 +798,7 @@ def toggle_artist_follow():
     if not all([artist_id, action]):
         return jsonify({"error": "Missing data"}), 400
 
-    auth_manager = get_auth_manager()
-    if not auth_manager.validate_token(auth_manager.get_cached_token()):
+    if not is_authenticated():
         return jsonify({"error": "Not authenticated"}), 401
 
     try:
@@ -790,8 +822,7 @@ def check_album_library():
     if not album_id:
         return jsonify({"error": "Missing album_id"}), 400
 
-    auth_manager = get_auth_manager()
-    if not auth_manager.validate_token(auth_manager.get_cached_token()):
+    if not is_authenticated():
         return jsonify({"error": "Not authenticated"}), 401
 
     try:
@@ -812,8 +843,7 @@ def toggle_album_library():
     if not all([album_id, action]):
         return jsonify({"error": "Missing data"}), 400
 
-    auth_manager = get_auth_manager()
-    if not auth_manager.validate_token(auth_manager.get_cached_token()):
+    if not is_authenticated():
         return jsonify({"error": "Not authenticated"}), 401
 
     try:
