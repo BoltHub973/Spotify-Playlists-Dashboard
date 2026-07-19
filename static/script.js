@@ -21,6 +21,7 @@ let allPlaylists = [];
 let activePlaylistsMap = new Set(); // Set of Playlist IDs that contain the current track
 let justSavedId = null; // Playlist ID that was just saved — gets a one-shot "save" animation
 let colorCache = {}; // Cache extracted colors by track ID
+let editMode = false; // Playlists page: tiles open the editor instead of toggling the track
 
 // Load color cache from localStorage
 try {
@@ -485,8 +486,14 @@ function renderPlaylists() {
     if (justSaved) item.classList.add("just-saved");
     if (isSpecialPlaylist(playlist)) item.classList.add("naga-special");
 
-    // Use ID for toggling
-    item.onclick = () => togglePlaylist(playlist);
+    if (editMode && !isTracker && !isQueue) {
+      // Edit mode: clicking a tile edits it instead of toggling the track
+      item.classList.add("editable");
+      item.onclick = () => openEditor("edit", playlist);
+    } else {
+      // Use ID for toggling
+      item.onclick = () => togglePlaylist(playlist);
+    }
 
     const nameSpan = document.createElement("span");
     nameSpan.className = "playlist-name";
@@ -500,6 +507,19 @@ function renderPlaylists() {
     indicator.innerHTML =
       '<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>';
     item.appendChild(indicator);
+
+    if (editMode && !isTracker && !isQueue) {
+      const del = document.createElement("button");
+      del.className = "tile-delete-btn";
+      del.type = "button";
+      del.setAttribute("aria-label", `Remove ${playlist.name}`);
+      del.textContent = "✕";
+      del.onclick = (e) => {
+        e.stopPropagation();
+        deletePlaylistItem(playlist);
+      };
+      item.appendChild(del);
+    }
 
     return item;
   };
@@ -1123,6 +1143,225 @@ document.addEventListener("DOMContentLoaded", () => {
   if (!isQueue) {
     initSidebar();
   }
+});
+
+// ============================================
+// Playlist Editor (playlists page only)
+// Add / edit / remove the tiles shown on this page. Only the dashboard's
+// config is changed — the Spotify playlists themselves are never touched.
+// ============================================
+const editorState = {
+  mode: "add", // "add" | "edit"
+  original: null, // playlist entry being edited (as served by the backend)
+  selected: null, // {id, name} chosen Spotify playlist
+  spotifyPlaylists: null, // cached picker list
+};
+
+function initPlaylistEditor() {
+  const editBtn = document.getElementById("edit-mode-btn");
+  const addBtn = document.getElementById("add-playlist-btn");
+  const overlay = document.getElementById("playlist-editor-overlay");
+  if (!editBtn || !addBtn || !overlay) return;
+
+  editBtn.addEventListener("click", toggleEditMode);
+  addBtn.addEventListener("click", () => openEditor("add"));
+
+  document.getElementById("editor-cancel").addEventListener("click", closeEditor);
+  document.getElementById("editor-save").addEventListener("click", saveEditor);
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) closeEditor();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !overlay.hidden) closeEditor();
+  });
+
+  const search = document.getElementById("editor-spotify-search");
+  search.addEventListener("input", () => renderSpotifyPicker(search.value));
+}
+
+function toggleEditMode() {
+  editMode = !editMode;
+  document.body.classList.toggle("edit-mode", editMode);
+  const btn = document.getElementById("edit-mode-btn");
+  if (btn) {
+    btn.classList.toggle("active", editMode);
+    btn.textContent = editMode ? "✓ DONE" : "✎ EDIT";
+  }
+  renderPlaylists();
+}
+
+async function loadSpotifyPlaylistsForPicker(refresh = false) {
+  if (editorState.spotifyPlaylists && !refresh) return editorState.spotifyPlaylists;
+  const res = await fetch(`/api/spotify-playlists${refresh ? "?refresh=1" : ""}`);
+  if (!res.ok) throw new Error(`Failed to load Spotify playlists (${res.status})`);
+  editorState.spotifyPlaylists = await res.json();
+  return editorState.spotifyPlaylists;
+}
+
+function openEditor(mode, playlist = null) {
+  editorState.mode = mode;
+  editorState.original = playlist;
+  editorState.selected = playlist
+    ? { id: playlist.id, name: playlist.spotify_name }
+    : null;
+
+  const overlay = document.getElementById("playlist-editor-overlay");
+  document.getElementById("editor-title").textContent =
+    mode === "edit" ? "EDIT PLAYLIST" : "NEW PLAYLIST";
+  document.getElementById("editor-display-name").value = playlist ? playlist.name : "";
+  document.getElementById("editor-spotify-search").value = "";
+  setEditorError(null);
+  updateSelectedChip();
+
+  overlay.hidden = false;
+  document.getElementById("editor-display-name").focus();
+
+  const list = document.getElementById("editor-spotify-list");
+  list.innerHTML =
+    '<div class="editor-list-note">Loading your Spotify playlists…</div>';
+  loadSpotifyPlaylistsForPicker()
+    .then(() => renderSpotifyPicker(""))
+    .catch((e) => {
+      list.innerHTML = "";
+      setEditorError(e.message);
+    });
+}
+
+function closeEditor() {
+  document.getElementById("playlist-editor-overlay").hidden = true;
+}
+
+function renderSpotifyPicker(filterText) {
+  const list = document.getElementById("editor-spotify-list");
+  list.innerHTML = "";
+  const all = editorState.spotifyPlaylists || [];
+  const filter = (filterText || "").trim().toLowerCase();
+  const matches = filter
+    ? all.filter((p) => p.name.toLowerCase().includes(filter))
+    : all;
+
+  if (matches.length === 0) {
+    list.innerHTML = '<div class="editor-list-note">No playlists match.</div>';
+    return;
+  }
+
+  matches.forEach((p) => {
+    const row = document.createElement("div");
+    row.className = "editor-spotify-row";
+    if (editorState.selected && editorState.selected.id === p.id) {
+      row.classList.add("selected");
+    }
+    row.textContent = p.name;
+    row.onclick = () => {
+      editorState.selected = { id: p.id, name: p.name };
+      setEditorError(null);
+      updateSelectedChip();
+      renderSpotifyPicker(filterText);
+    };
+    list.appendChild(row);
+  });
+}
+
+function updateSelectedChip() {
+  const chip = document.getElementById("editor-selected");
+  if (editorState.selected) {
+    chip.textContent = `→ ${editorState.selected.name}`;
+    chip.hidden = false;
+  } else {
+    chip.hidden = true;
+  }
+}
+
+function setEditorError(msg) {
+  const el = document.getElementById("editor-error");
+  if (msg) {
+    el.textContent = msg;
+    el.hidden = false;
+  } else {
+    el.hidden = true;
+  }
+}
+
+async function saveEditor() {
+  const displayName = document.getElementById("editor-display-name").value.trim();
+  if (!displayName) return setEditorError("Enter a display name.");
+  if (!editorState.selected)
+    return setEditorError("Pick the Spotify playlist this tile should update.");
+
+  const isEdit = editorState.mode === "edit";
+  const body = {
+    display_name: displayName,
+    spotify_name: editorState.selected.name,
+    spotify_id: editorState.selected.id,
+  };
+  if (isEdit) body.original_display_name = editorState.original.name;
+
+  const saveBtn = document.getElementById("editor-save");
+  saveBtn.disabled = true;
+  try {
+    const pageId = document.body.dataset.pageId || "playlists";
+    const res = await fetch(`/api/page/${pageId}/playlists`, {
+      method: isEdit ? "PUT" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.success) {
+      return setEditorError(data.error || `Save failed (${res.status})`);
+    }
+    closeEditor();
+    await refreshAfterEdit();
+  } catch (e) {
+    console.error("Error saving playlist item:", e);
+    setEditorError("Network error — try again.");
+  } finally {
+    saveBtn.disabled = false;
+  }
+}
+
+async function deletePlaylistItem(playlist) {
+  const ok = confirm(
+    `Remove "${playlist.name}" from this page?\n(The Spotify playlist itself is not touched.)`,
+  );
+  if (!ok) return;
+
+  try {
+    const pageId = document.body.dataset.pageId || "playlists";
+    const res = await fetch(`/api/page/${pageId}/playlists`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ display_name: playlist.name }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.success) {
+      alert("Failed to remove: " + (data.error || res.status));
+      return;
+    }
+    await refreshAfterEdit();
+  } catch (e) {
+    console.error("Error removing playlist item:", e);
+    alert("Network error removing playlist item.");
+  }
+}
+
+async function refreshAfterEdit() {
+  await fetchPlaylists();
+  if (currentTrack) {
+    try {
+      await checkPlaylists(currentTrack.uri);
+    } catch (e) {
+      console.error("Error re-checking playlists after edit:", e);
+    }
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const pageId = document.body.dataset.pageId || "playlists";
+  const isGridPage =
+    pageId === "playlists" &&
+    !document.body.classList.contains("tracker-page") &&
+    !document.body.classList.contains("queue-page");
+  if (isGridPage) initPlaylistEditor();
 });
 
 

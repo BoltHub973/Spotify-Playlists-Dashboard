@@ -60,6 +60,8 @@ def is_authenticated():
 app_config = {}                  # The loaded config dict
 page_playlists = {}              # page_id -> list of resolved playlist dicts
 playlist_tracks_cache = {}       # Playlist ID -> Set of Track URIs
+user_spotify_playlists = []      # Cached list of the user's Spotify playlists (for the editor picker)
+config_lock = threading.Lock()   # Guards config.json read-modify-write cycles
 
 # Backward-compat aliases (populated after config load)
 dashboard_playlists = []
@@ -166,6 +168,7 @@ def populate_page_cache(page_id, playlists, label=None):
 
 def fetch_all_user_playlists():
     """Fetch all user playlists from Spotify once. Returns list of playlist dicts or None on error."""
+    global user_spotify_playlists
     print("Fetching user playlists from Spotify...")
     spotify_playlists = []
     try:
@@ -178,7 +181,34 @@ def fetch_all_user_playlists():
         print(f"Error fetching playlists: {e}")
         return None
     print(f"Fetched {len(spotify_playlists)} user playlists from Spotify.")
+    user_spotify_playlists = spotify_playlists
     return spotify_playlists
+
+
+def save_config():
+    """Persist app_config back to config.json (emoji-safe, pretty-printed)."""
+    with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+        json.dump(app_config, f, indent=2, ensure_ascii=False)
+        f.write('\n')
+
+
+def get_page_config(page_id):
+    return next((p for p in app_config.get('pages', []) if p['id'] == page_id), None)
+
+
+def resolve_spotify_playlist(spotify_name, spotify_id):
+    """Resolve a Spotify playlist reference to (id, name).
+
+    An explicit id wins; otherwise the name is looked up in the cached user
+    playlists, refreshing the cache once on a miss."""
+    if spotify_id:
+        cached = next((p for p in user_spotify_playlists if p['id'] == spotify_id), None)
+        return spotify_id, (cached['name'] if cached else spotify_name) or spotify_id
+    pid = next((p['id'] for p in user_spotify_playlists if p['name'] == spotify_name), None)
+    if not pid:
+        fetch_all_user_playlists()
+        pid = next((p['id'] for p in user_spotify_playlists if p['name'] == spotify_name), None)
+    return pid, spotify_name
 
 
 def load_all_pages(spotify_playlists):
@@ -278,6 +308,113 @@ def get_page_playlists_api(page_id):
     response = jsonify(playlists)
     response.headers['X-Loading-State'] = loading_state
     return response
+
+
+@app.route('/api/spotify-playlists')
+def get_spotify_playlists():
+    """The user's Spotify playlists (name + id), for the playlist-editor picker."""
+    if not is_authenticated():
+        return jsonify({"error": "Not authenticated"}), 401
+    if request.args.get('refresh') == '1' or not user_spotify_playlists:
+        fetch_all_user_playlists()
+    items = [{'name': p['name'], 'id': p['id']} for p in user_spotify_playlists]
+    items.sort(key=lambda p: p['name'].lower())
+    return jsonify(items)
+
+
+@app.route('/api/page/<page_id>/playlists', methods=['POST', 'PUT', 'DELETE'])
+def edit_page_playlists(page_id):
+    """Create, update, or delete a playlist item on a page.
+
+    POST   {display_name, spotify_name, spotify_id}
+    PUT    {original_display_name, display_name, spotify_name, spotify_id}
+    DELETE {display_name}
+
+    Persists to config.json and updates the in-memory resolved lists so the
+    change is live immediately (no restart needed). Only the dashboard config
+    is touched — the Spotify playlists themselves are never modified here.
+    """
+    if not is_authenticated():
+        return jsonify({"error": "Not authenticated"}), 401
+
+    data = request.json or {}
+
+    with config_lock:
+        page_cfg = get_page_config(page_id)
+        if not page_cfg:
+            return jsonify({"error": f"Page '{page_id}' not found in config"}), 404
+        items = page_cfg.setdefault('playlists', [])
+        resolved_list = page_playlists.get(page_id)
+
+        def find_item(name):
+            return next((i for i in items if i.get('type') != 'divider'
+                         and i.get('display_name', '').strip() == name), None)
+
+        if request.method == 'DELETE':
+            display_name = (data.get('display_name') or '').strip()
+            item = find_item(display_name)
+            if not item:
+                return jsonify({"error": f"'{display_name}' not found on this page"}), 404
+            items.remove(item)
+            if resolved_list is not None:
+                entry = next((e for e in resolved_list if e['name'] == display_name), None)
+                if entry:
+                    resolved_list.remove(entry)
+            save_config()
+            return jsonify({"success": True})
+
+        display_name = (data.get('display_name') or '').strip()
+        spotify_name = (data.get('spotify_name') or '').strip()
+        spotify_id = (data.get('spotify_id') or '').strip()
+        if not display_name:
+            return jsonify({"error": "Display name is required"}), 400
+        if not (spotify_name or spotify_id):
+            return jsonify({"error": "A Spotify playlist is required"}), 400
+
+        pid, resolved_name = resolve_spotify_playlist(spotify_name, spotify_id)
+        if not pid:
+            return jsonify({"error": f"Playlist '{spotify_name}' not found in your Spotify library"}), 404
+
+        def start_cache_fill(entry, tag):
+            playlist_tracks_cache.setdefault(pid, set())
+            threading.Thread(target=populate_page_cache,
+                             args=(page_id, [entry], tag),
+                             daemon=True).start()
+
+        if request.method == 'POST':
+            if find_item(display_name):
+                return jsonify({"error": f"'{display_name}' already exists on this page"}), 409
+            items.append({'display_name': display_name,
+                          'spotify_name': resolved_name,
+                          'spotify_id': pid})
+            if resolved_list is not None:
+                new_entry = {'name': display_name, 'spotify_name': resolved_name,
+                             'id': pid, 'is_divider': False}
+                resolved_list.append(new_entry)
+                start_cache_fill(new_entry, f"{page_id}:new")
+            save_config()
+            return jsonify({"success": True})
+
+        # PUT
+        original = (data.get('original_display_name') or '').strip()
+        item = find_item(original)
+        if not item:
+            return jsonify({"error": f"'{original}' not found on this page"}), 404
+        dup = find_item(display_name)
+        if dup is not None and dup is not item:
+            return jsonify({"error": f"'{display_name}' already exists on this page"}), 409
+        item['display_name'] = display_name
+        item['spotify_name'] = resolved_name
+        item['spotify_id'] = pid
+        if resolved_list is not None:
+            entry = next((e for e in resolved_list if e['name'] == original), None)
+            if entry:
+                id_changed = entry['id'] != pid
+                entry.update({'name': display_name, 'spotify_name': resolved_name, 'id': pid})
+                if id_changed:
+                    start_cache_fill(entry, f"{page_id}:edit")
+        save_config()
+        return jsonify({"success": True})
 
 # ─────────────────────────────────────────────
 # Backward-compat aliases — your existing local URLs keep working

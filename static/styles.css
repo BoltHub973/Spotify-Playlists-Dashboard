@@ -1216,3 +1216,264 @@ body.tracker-page .sidebar-toggle:focus-visible {
     animation: none;
   }
 }
+
+/* ========================================
+   Playlist Editor (playlists page)
+   ======================================== */
+
+/* Slim toolbar above the grid — .grid-header is display:none on other pages */
+.playlists-page .grid-header {
+  display: flex;
+  justify-content: flex-end;
+  gap: clamp(6px, 0.6vw, 10px);
+  padding-bottom: clamp(4px, 0.6vh, 8px);
+  flex-shrink: 0;
+}
+
+.grid-header-btn {
+  font-family: var(--font-heading);
+  font-size: clamp(0.6rem, 0.7vw, 0.8rem);
+  font-weight: 500;
+  letter-spacing: 2px;
+  color: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  padding: 4px 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.grid-header-btn:hover {
+  color: var(--neon-green);
+  border-color: rgba(132, 255, 0, 0.6);
+  background: rgba(132, 255, 0, 0.08);
+}
+
+.grid-header-btn.active {
+  color: var(--neon-cyan);
+  border-color: var(--neon-cyan);
+  background: rgba(0, 243, 255, 0.1);
+  box-shadow: 0 0 12px rgba(0, 243, 255, 0.35);
+}
+
+/* Edit mode: tiles read as editable, not clickable-to-save */
+body.edit-mode .playlist-item {
+  position: relative;
+  border-style: dashed;
+  border-color: rgba(0, 243, 255, 0.35);
+}
+
+body.edit-mode .playlist-item:hover {
+  border-color: var(--neon-cyan);
+  background: rgba(0, 243, 255, 0.08);
+  box-shadow: 0 4px 15px rgba(0, 243, 255, 0.15);
+}
+
+.tile-delete-btn {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  width: clamp(16px, 1.4vw, 22px);
+  height: clamp(16px, 1.4vw, 22px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(0.55rem, 0.7vw, 0.75rem);
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.6);
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tile-delete-btn:hover {
+  color: #fff;
+  border-color: #ff4d6d;
+  background: rgba(255, 77, 109, 0.35);
+  box-shadow: 0 0 10px rgba(255, 77, 109, 0.5);
+}
+
+/* Keep tile text clear of the delete button in edit mode */
+body.edit-mode .playlist-item .status-indicator {
+  display: none;
+}
+body.edit-mode .playlist-item .playlist-name {
+  padding-right: clamp(20px, 1.8vw, 28px);
+}
+
+/* Modal */
+.editor-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.editor-overlay[hidden] {
+  display: none;
+}
+
+.editor-modal {
+  width: min(560px, 92vw);
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+  background: rgba(18, 18, 18, 0.95);
+  border: 1px solid rgba(132, 255, 0, 0.35);
+  border-radius: 10px;
+  box-shadow:
+    0 0 30px rgba(132, 255, 0, 0.15),
+    0 24px 60px rgba(0, 0, 0, 0.7);
+  padding: clamp(18px, 2vw, 28px);
+}
+
+.editor-title {
+  font-family: var(--font-heading);
+  font-size: clamp(1rem, 1.3vw, 1.4rem);
+  font-weight: 700;
+  letter-spacing: 3px;
+  color: var(--text-primary);
+  text-shadow: var(--glow-text);
+  margin-bottom: clamp(14px, 1.6vh, 22px);
+}
+
+.editor-label {
+  font-family: var(--font-body);
+  font-size: clamp(0.75rem, 0.85vw, 0.95rem);
+  font-weight: 600;
+  letter-spacing: 2px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.editor-input {
+  font-family: var(--font-body);
+  font-size: clamp(0.95rem, 1.05vw, 1.2rem);
+  font-weight: 500;
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: clamp(12px, 1.4vh, 18px);
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.editor-input:focus {
+  border-color: var(--neon-green);
+  box-shadow: 0 0 10px rgba(132, 255, 0, 0.25);
+}
+
+.editor-spotify-list {
+  flex: 1 1 auto;
+  min-height: 120px;
+  max-height: 34vh;
+  overflow-y: auto;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.editor-spotify-row {
+  font-family: var(--font-body);
+  font-size: clamp(0.9rem, 1vw, 1.1rem);
+  font-weight: 500;
+  color: var(--text-primary);
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background 0.1s ease;
+}
+
+.editor-spotify-row:hover {
+  background: rgba(132, 255, 0, 0.1);
+}
+
+.editor-spotify-row.selected {
+  background: rgba(132, 255, 0, 0.18);
+  color: var(--neon-green);
+  border-left: 3px solid var(--neon-green);
+}
+
+.editor-list-note {
+  font-family: var(--font-body);
+  color: var(--text-secondary);
+  padding: 14px 12px;
+}
+
+.editor-selected {
+  font-family: var(--font-body);
+  font-size: clamp(0.85rem, 0.95vw, 1.05rem);
+  font-weight: 600;
+  color: var(--neon-green);
+  padding: 8px 2px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.editor-error {
+  font-family: var(--font-body);
+  font-weight: 600;
+  color: #ff4d6d;
+  padding: 8px 2px 0;
+}
+
+.editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: clamp(14px, 1.8vh, 22px);
+}
+
+.editor-btn {
+  font-family: var(--font-heading);
+  font-size: clamp(0.7rem, 0.8vw, 0.9rem);
+  font-weight: 700;
+  letter-spacing: 2px;
+  border-radius: 6px;
+  padding: 9px 20px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.editor-btn.ghost {
+  color: rgba(255, 255, 255, 0.65);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.editor-btn.ghost:hover {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.editor-btn.primary {
+  color: #0b2500;
+  background: linear-gradient(180deg, rgba(120, 230, 0, 0.95), rgba(74, 175, 0, 0.92));
+  border: 1px solid var(--neon-green);
+  box-shadow: 0 0 14px rgba(132, 255, 0, 0.35);
+}
+
+.editor-btn.primary:hover {
+  background: linear-gradient(180deg, rgba(140, 255, 20, 1), rgba(90, 200, 0, 0.96));
+  box-shadow: 0 0 20px rgba(132, 255, 0, 0.55);
+}
+
+.editor-btn.primary:disabled {
+  opacity: 0.55;
+  cursor: default;
+}

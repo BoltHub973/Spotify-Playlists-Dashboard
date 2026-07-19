@@ -45,7 +45,10 @@
 
       <!-- Playlist Grid -->
       <main class="playlist-section">
-        <div class="grid-header"></div>
+        <div class="grid-header">
+          <button id="add-playlist-btn" class="grid-header-btn" type="button">＋ NEW</button>
+          <button id="edit-mode-btn" class="grid-header-btn" type="button">✎ EDIT</button>
+        </div>
         <div class="playlist-grid" id="playlist-grid">
           <!-- Playlist Items will be injected here by JS -->
         </div>
@@ -93,6 +96,42 @@
           </div>
         </div>
       </aside>
+    </div>
+
+    <!-- Playlist Editor Modal -->
+    <div id="playlist-editor-overlay" class="editor-overlay" hidden>
+      <div class="editor-modal" role="dialog" aria-modal="true" aria-labelledby="editor-title">
+        <h3 class="editor-title" id="editor-title">NEW PLAYLIST</h3>
+
+        <label class="editor-label" for="editor-display-name">DISPLAY NAME</label>
+        <input
+          id="editor-display-name"
+          class="editor-input"
+          type="text"
+          placeholder="Name shown on this page"
+          autocomplete="off"
+          spellcheck="false"
+        />
+
+        <label class="editor-label" for="editor-spotify-search">SPOTIFY PLAYLIST TO UPDATE</label>
+        <input
+          id="editor-spotify-search"
+          class="editor-input"
+          type="text"
+          placeholder="Search your Spotify playlists…"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <div id="editor-spotify-list" class="editor-spotify-list"></div>
+        <div id="editor-selected" class="editor-selected" hidden></div>
+
+        <div id="editor-error" class="editor-error" hidden></div>
+
+        <div class="editor-actions">
+          <button id="editor-cancel" class="editor-btn ghost" type="button">CANCEL</button>
+          <button id="editor-save" class="editor-btn primary" type="button">SAVE</button>
+        </div>
+      </div>
     </div>
 
     <script src="script.js"></script>
