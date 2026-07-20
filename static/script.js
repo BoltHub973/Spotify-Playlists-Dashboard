@@ -661,6 +661,13 @@ async function togglePlaylist(playlist) {
 
       // Trigger sidebar on ADD only (Playlists & Tracker pages)
       if (action === "add" && !isQueue && currentTrack) {
+        // Tracker adds auto-follow the main artist server-side; patch any
+        // cached sidebar entry so its follow button isn't stale
+        if (isTracker) {
+          const mainArtist = currentTrack.artist.split(",")[0].trim();
+          const cached = sidebarState.artistCache[mainArtist];
+          if (cached && cached !== "empty") cached.is_following = true;
+        }
         showArtistSidebar(currentTrack);
       }
     }
