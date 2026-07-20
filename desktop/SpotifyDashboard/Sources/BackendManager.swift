@@ -15,55 +15,115 @@ class BackendManager {
     /// Path to the project root (where app.py lives)
     let projectRoot: String
 
+    private static let bookmarkKey = "SpotifyDashboardProjectRootBookmark"
+
     init() {
         self.healthURL = URL(string: "http://127.0.0.1:\(port)/health")!
+        self.projectRoot = Self.resolveProjectRoot()
+        // Remember the resolved root as a file bookmark so future launches can
+        // find the folder even after it is renamed or moved.
+        Self.saveBookmark(forPath: self.projectRoot)
+    }
 
-        // Determine project root:
-        // 1. Check SPOTIFY_DASHBOARD_PATH environment variable (dev/run.sh override)
-        // 2. Use the SpotifyDashboardProjectRoot stamped into Info.plist at build
-        //    time (the reliable source when launched from /Applications)
-        // 3. Fall back to the directory containing the .app bundle's grandparent
-        // 4. Fall back to current working directory
+    /// Determine project root:
+    /// 1. SPOTIFY_DASHBOARD_PATH environment variable (dev/run.sh override)
+    /// 2. The SpotifyDashboardProjectRoot stamped into Info.plist at build time
+    ///    (the reliable source when launched from /Applications)
+    /// 3. The bookmark saved on a previous successful launch — bookmarks track
+    ///    the folder by filesystem ID, so this survives renames and moves
+    /// 4. The .app bundle's grandparent (dev layout: <project>/desktop/SpotifyDashboard/build/)
+    /// 5. Current working directory
+    /// 6. Walking up from the bundle
+    /// 7. Scanning the stale stamped path's parent for a renamed project folder
+    private static func resolveProjectRoot() -> String {
+        let fm = FileManager.default
+
+        func hasAppPy(_ path: String) -> Bool {
+            fm.fileExists(atPath: URL(fileURLWithPath: path).appendingPathComponent("app.py").path)
+        }
+
         if let envPath = ProcessInfo.processInfo.environment["SPOTIFY_DASHBOARD_PATH"] {
-            self.projectRoot = envPath
-        } else if let stamped = Bundle.main.object(forInfoDictionaryKey: "SpotifyDashboardProjectRoot") as? String,
-                  !stamped.isEmpty,
-                  FileManager.default.fileExists(atPath: URL(fileURLWithPath: stamped).appendingPathComponent("app.py").path) {
-            self.projectRoot = stamped
-        } else {
-            // The app is expected to be at: <project>/desktop/SpotifyDashboard/build/SpotifyDashboard.app
-            // So project root is 4 levels up from the .app bundle
-            let bundlePath = Bundle.main.bundlePath
-            let bundleURL = URL(fileURLWithPath: bundlePath)
-            let candidate = bundleURL
-                .deletingLastPathComponent() // build/
-                .deletingLastPathComponent() // SpotifyDashboard/
-                .deletingLastPathComponent() // desktop/
-            let appPyPath = candidate.appendingPathComponent("app.py").path
+            return envPath
+        }
 
-            if FileManager.default.fileExists(atPath: appPyPath) {
-                self.projectRoot = candidate.path
-            } else {
-                // Try current working directory
-                let cwd = FileManager.default.currentDirectoryPath
-                let cwdAppPy = URL(fileURLWithPath: cwd).appendingPathComponent("app.py").path
-                if FileManager.default.fileExists(atPath: cwdAppPy) {
-                    self.projectRoot = cwd
-                } else {
-                    // Last resort: go up from bundle until we find app.py
-                    var searchURL = bundleURL
-                    for _ in 0..<8 {
-                        searchURL = searchURL.deletingLastPathComponent()
-                        let testPath = searchURL.appendingPathComponent("app.py").path
-                        if FileManager.default.fileExists(atPath: testPath) {
-                            self.projectRoot = searchURL.path
-                            return
-                        }
-                    }
-                    self.projectRoot = cwd
-                }
+        let stamped = Bundle.main.object(forInfoDictionaryKey: "SpotifyDashboardProjectRoot") as? String
+        if let stamped = stamped, !stamped.isEmpty, hasAppPy(stamped) {
+            return stamped
+        }
+
+        if let bookmarked = resolveBookmark(), hasAppPy(bookmarked) {
+            return bookmarked
+        }
+
+        let bundleURL = URL(fileURLWithPath: Bundle.main.bundlePath)
+        let candidate = bundleURL
+            .deletingLastPathComponent() // build/
+            .deletingLastPathComponent() // SpotifyDashboard/
+            .deletingLastPathComponent() // desktop/
+        if hasAppPy(candidate.path) {
+            return candidate.path
+        }
+
+        let cwd = fm.currentDirectoryPath
+        if hasAppPy(cwd) {
+            return cwd
+        }
+
+        var searchURL = bundleURL
+        for _ in 0..<8 {
+            searchURL = searchURL.deletingLastPathComponent()
+            if hasAppPy(searchURL.path) {
+                return searchURL.path
             }
         }
+
+        if let stamped = stamped, !stamped.isEmpty,
+           let found = scanForProject(in: URL(fileURLWithPath: stamped).deletingLastPathComponent()) {
+            return found
+        }
+
+        return cwd
+    }
+
+    /// Scan the immediate children of `parent` for a directory that looks like
+    /// this project — used when the stamped folder was renamed in place. The
+    /// desktop/SpotifyDashboard marker keeps an unrelated Flask project from
+    /// matching on app.py alone.
+    private static func scanForProject(in parent: URL) -> String? {
+        let fm = FileManager.default
+        guard let children = try? fm.contentsOfDirectory(
+            at: parent,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ) else { return nil }
+
+        let matches = children.filter { child in
+            (try? child.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+                && fm.fileExists(atPath: child.appendingPathComponent("app.py").path)
+                && fm.fileExists(atPath: child.appendingPathComponent("desktop/SpotifyDashboard/build.sh").path)
+        }
+        let preferred = matches.first { $0.lastPathComponent.lowercased().contains("spotify") } ?? matches.first
+        return preferred?.path
+    }
+
+    private static func saveBookmark(forPath path: String) {
+        let url = URL(fileURLWithPath: path)
+        guard FileManager.default.fileExists(atPath: url.appendingPathComponent("app.py").path) else { return }
+        if let data = try? url.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil) {
+            UserDefaults.standard.set(data, forKey: bookmarkKey)
+        }
+    }
+
+    private static func resolveBookmark() -> String? {
+        guard let data = UserDefaults.standard.data(forKey: bookmarkKey) else { return nil }
+        var isStale = false
+        guard let url = try? URL(
+            resolvingBookmarkData: data,
+            options: [.withoutUI, .withoutMounting],
+            relativeTo: nil,
+            bookmarkDataIsStale: &isStale
+        ) else { return nil }
+        return url.path
     }
 
     /// Check that all files required for the backend to run are present at projectRoot.
