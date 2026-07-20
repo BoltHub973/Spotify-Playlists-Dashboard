@@ -662,6 +662,8 @@ def toggle_playlist():
     if not is_authenticated():
         return jsonify({"error": "Not authenticated"}), 401
 
+    artist_followed = False
+
     try:
         if action == 'add':
             # 1. Add to Playlist
@@ -686,6 +688,7 @@ def toggle_playlist():
                         artist_id = track['artists'][0]['id'] if track.get('artists') else None
                     if artist_id:
                         sp.user_follow_artists([artist_id])
+                        artist_followed = True
                         message = "Added to playlist, Liked Songs, and followed artist."
                 except Exception as e:
                     print(f"Error auto-following artist {artist_id}: {e}")
@@ -725,7 +728,7 @@ def toggle_playlist():
         else:
             return jsonify({"error": "Invalid action"}), 400
 
-        return jsonify({"success": True, "message": message})
+        return jsonify({"success": True, "message": message, "artist_followed": artist_followed})
 
     except Exception as e:
         print(f"Error toggling playlist: {e}")

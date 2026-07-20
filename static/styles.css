@@ -1477,3 +1477,43 @@ body.edit-mode .playlist-item .playlist-name {
   opacity: 0.55;
   cursor: default;
 }
+
+/* ============================================
+   Toast Notifications
+   ============================================ */
+#toast-container {
+  position: fixed;
+  bottom: 36px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  z-index: 2000;
+  pointer-events: none;
+}
+
+.toast {
+  background: rgba(18, 18, 18, 0.92);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(132, 255, 0, 0.55);
+  border-radius: 10px;
+  padding: 12px 22px;
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+  box-shadow: 0 0 14px rgba(132, 255, 0, 0.3), 0 4px 18px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}

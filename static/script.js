@@ -663,10 +663,11 @@ async function togglePlaylist(playlist) {
       if (action === "add" && !isQueue && currentTrack) {
         // Tracker adds auto-follow the main artist server-side; patch any
         // cached sidebar entry so its follow button isn't stale
-        if (isTracker) {
+        if (isTracker && data.artist_followed) {
           const mainArtist = currentTrack.artist.split(",")[0].trim();
           const cached = sidebarState.artistCache[mainArtist];
           if (cached && cached !== "empty") cached.is_following = true;
+          showToast(`Now following ${mainArtist}`);
         }
         showArtistSidebar(currentTrack);
       }
@@ -678,6 +679,34 @@ async function togglePlaylist(playlist) {
     else activePlaylistsMap.add(playlist.id);
     alert("Network error.");
   }
+}
+
+// ============================================
+// Toast Notifications
+// ============================================
+function showToast(message) {
+  let container = document.getElementById("toast-container");
+  if (!container) {
+    container = document.createElement("div");
+    container.id = "toast-container";
+    document.body.appendChild(container);
+  }
+
+  const toast = document.createElement("div");
+  toast.className = "toast";
+  toast.textContent = message;
+  container.appendChild(toast);
+
+  // Enter on the next frame so the transition actually plays
+  requestAnimationFrame(() => toast.classList.add("show"));
+
+  setTimeout(() => {
+    toast.classList.remove("show");
+    toast.addEventListener("transitionend", () => toast.remove(), {
+      once: true,
+    });
+    setTimeout(() => toast.remove(), 600); // fallback if transitionend never fires
+  }, 3500);
 }
 
 // ============================================
