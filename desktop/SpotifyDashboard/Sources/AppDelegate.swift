@@ -408,6 +408,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let shortVersion = info["CFBundleShortVersionString"] as? String ?? ""
         let displayVersion = (info["SpotifyDashboardVersionDisplay"] as? String)
             ?? (info["CFBundleVersion"] as? String ?? "")
+        let commitURL = info["SpotifyDashboardVersionCommitURL"] as? String
 
         let win = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 560, height: 520),
@@ -445,11 +446,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         versionLabel.alignment = .center
         stack.addArrangedSubview(versionLabel)
 
-        let buildLabel = NSTextField(labelWithString: displayVersion)
-        buildLabel.font = NSFont.monospacedSystemFont(ofSize: 17, weight: .regular)
-        buildLabel.textColor = .labelColor
-        buildLabel.alignment = .center
-        stack.addArrangedSubview(buildLabel)
+        stack.addArrangedSubview(buildLine(displayVersion, commitURL: commitURL))
 
         guard let content = win.contentView else { return win }
         content.addSubview(stack)
@@ -460,6 +457,30 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             stack.bottomAnchor.constraint(lessThanOrEqualTo: content.bottomAnchor),
         ])
         return win
+    }
+
+    /// The monospaced build line. When a commit URL was stamped at build time, the trailing
+    /// SHA is a clickable hyperlink to the commit on GitHub; otherwise it's plain text.
+    private func buildLine(_ displayVersion: String, commitURL: String?) -> NSTextField {
+        let mono = NSFont.monospacedSystemFont(ofSize: 17, weight: .regular)
+        let attr = NSMutableAttributedString(
+            string: displayVersion,
+            attributes: [.font: mono, .foregroundColor: NSColor.labelColor])
+        // Hyperlink only the trailing SHA — the token after the final " · " separator.
+        if let s = commitURL, let url = URL(string: s),
+           let sep = displayVersion.range(of: " · ", options: .backwards) {
+            let shaRange = NSRange(sep.upperBound..<displayVersion.endIndex, in: displayVersion)
+            attr.addAttributes([
+                .link: url,
+                .foregroundColor: NSColor.linkColor,
+                .underlineStyle: NSUnderlineStyle.single.rawValue,
+            ], range: shaRange)
+        }
+        let field = NSTextField(labelWithAttributedString: attr)
+        field.alignment = .center
+        field.isSelectable = true                 // selectable + allowsEditingTextAttributes is the
+        field.allowsEditingTextAttributes = true  // documented recipe for a clickable NSTextField link
+        return field
     }
 
     @objc func navigateToPlaylists() {

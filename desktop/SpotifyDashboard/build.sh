@@ -63,19 +63,35 @@ cp "$RESOURCES_DIR/Info.plist" "$APP_BUNDLE/Contents/"
 
 # Stamp commit-derived version metadata into the bundle's Info.plist.
 # CFBundleShortVersionString stays as-is (managed by the app-versioning skill).
-# CFBundleVersion + SpotifyDashboardVersionDisplay are computed from latest origin/main.
+# CFBundleVersion + SpotifyDashboardVersionDisplay + SpotifyDashboardVersionCommitURL
+# are computed from the same commit (latest origin/main), so the timestamp, SHA,
+# and link all agree.
 GIT_REF=$(git -C "$SCRIPT_DIR" rev-parse --verify origin/main 2>/dev/null \
        || git -C "$SCRIPT_DIR" rev-parse --verify main 2>/dev/null \
        || git -C "$SCRIPT_DIR" rev-parse HEAD)
 GIT_TS_UNIX=$(git -C "$SCRIPT_DIR" log -1 --format='%ct' "$GIT_REF")
 GIT_SHA=$(git -C "$SCRIPT_DIR" rev-parse --short=7 "$GIT_REF")
+GIT_FULL_SHA=$(git -C "$SCRIPT_DIR" rev-parse "$GIT_REF")
 BUILD_NUMBER=$(date -r "$GIT_TS_UNIX" +"%Y%m%d.%H%M")
 DISPLAY_VERSION="$(date -r "$GIT_TS_UNIX" +"%m-%d-%y %-I:%M %p") · $GIT_SHA"
+
+# Commit URL for the About-panel hyperlink. Derive the repo's https web URL from the
+# origin remote (handles git@, ssh://, and https forms), then append the commit SHA.
+# Stays empty when there's no origin remote — the About panel then shows plain text.
+COMMIT_URL=""
+REMOTE_URL=$(git -C "$SCRIPT_DIR" remote get-url origin 2>/dev/null || echo "")
+if [ -n "$REMOTE_URL" ]; then
+    WEB_URL=$(printf '%s' "$REMOTE_URL" \
+        | sed -E 's#^git@([^:]+):#https://\1/#; s#^ssh://git@#https://#; s#\.git$##')
+    COMMIT_URL="$WEB_URL/commit/$GIT_FULL_SHA"
+fi
 
 PLIST="$APP_BUNDLE/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$PLIST"
 /usr/libexec/PlistBuddy -c "Delete :SpotifyDashboardVersionDisplay" "$PLIST" 2>/dev/null || true
 /usr/libexec/PlistBuddy -c "Add :SpotifyDashboardVersionDisplay string $DISPLAY_VERSION" "$PLIST"
+/usr/libexec/PlistBuddy -c "Delete :SpotifyDashboardVersionCommitURL" "$PLIST" 2>/dev/null || true
+[ -n "$COMMIT_URL" ] && /usr/libexec/PlistBuddy -c "Add :SpotifyDashboardVersionCommitURL string $COMMIT_URL" "$PLIST"
 
 # Stamp the project root so the app can find app.py / static/ even when launched
 # from /Applications (where the bundle-relative path no longer resolves to the repo).
