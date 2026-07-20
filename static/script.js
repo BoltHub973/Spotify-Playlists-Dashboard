@@ -596,6 +596,7 @@ async function togglePlaylist(playlist) {
   const isCurrentlyActive = activePlaylistsMap.has(playlist.id);
   const action = isCurrentlyActive ? "remove" : "add";
   const isQueue = document.body.classList.contains("queue-page");
+  const isTracker = document.body.classList.contains("tracker-page");
 
   // Optimistic Update
   if (action === "add") {
@@ -629,6 +630,12 @@ async function togglePlaylist(playlist) {
         track_uri: currentTrack.uri,
         action: action,
       };
+
+    // On the Tracker page, adding a track also follows its main artist
+    if (isTracker && action === "add") {
+      requestBody.follow_artist = true;
+      requestBody.artist_id = currentTrack.artist_id || null;
+    }
 
     const res = await fetch(endpoint, {
       method: "POST",

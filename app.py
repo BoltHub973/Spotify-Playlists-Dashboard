@@ -522,6 +522,7 @@ def get_current_track():
             "id": track['id'],
             "name": track['name'],
             "artist": ", ".join([artist['name'] for artist in track['artists']]),
+            "artist_id": track['artists'][0]['id'] if track.get('artists') else None,
             "album": album_name,
             "album_id": album_id,
             "album_cover": album_cover,
@@ -652,6 +653,8 @@ def toggle_playlist():
     playlist_id = data.get('playlist_id')
     track_uri = data.get('track_uri')
     action = data.get('action') # 'add' or 'remove'
+    follow_artist = data.get('follow_artist', False) # Tracker page: auto-follow main artist on add
+    artist_id = data.get('artist_id')
 
     if not all([playlist_id, track_uri, action]):
         return jsonify({"error": "Missing data"}), 400
@@ -672,6 +675,20 @@ def toggle_playlist():
             track_id = track_uri.replace('spotify:track:', '')
             sp.current_user_saved_tracks_add([track_id])
             message = "Added to playlist and Liked Songs."
+
+            # 3. Follow the track's main artist (Tracker page only).
+            # Following is idempotent, so no need to check state first.
+            # A follow failure shouldn't undo a successful add — log and continue.
+            if follow_artist:
+                try:
+                    if not artist_id:
+                        track = sp.track(track_id)
+                        artist_id = track['artists'][0]['id'] if track.get('artists') else None
+                    if artist_id:
+                        sp.user_follow_artists([artist_id])
+                        message = "Added to playlist, Liked Songs, and followed artist."
+                except Exception as e:
+                    print(f"Error auto-following artist {artist_id}: {e}")
         
         elif action == 'remove':
             # 1. Remove from Playlist
