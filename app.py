@@ -270,10 +270,12 @@ threading.Thread(target=safe_load_playlists, daemon=True).start()
 # ─────────────────────────────────────────────
 @app.route('/health')
 def health():
-    if loading_state == "done":
-        return 'ok', 200
-    else:
-        return 'loading', 503
+    # Flask serving at all means the app can load: /api/current-track works the
+    # moment auth is valid, and the playlist endpoints report their own warm-up
+    # via the X-Loading-State header. Holding /health at 503 until every
+    # playlist was fetched made the desktop loading screen wait on the slowest
+    # part of startup before the current track could even be requested.
+    return jsonify({"status": "ok", "playlists": loading_state}), 200
 
 # Auth status endpoint — lets the desktop app check whether the user has a
 # valid Spotify token before trying to load the dashboard in the WebView.
@@ -481,10 +483,25 @@ def serve_static(path):
     response.headers['Expires'] = '0'
     return response
 
+# Short-lived cache of the current-track payload. Every page is a full
+# document load that polls this endpoint on arrival, and each uncached hit
+# costs two Spotify round-trips — so switching pages felt like the track had
+# to be "re-recognized". Within the TTL, page switches are served instantly.
+current_track_cache = {"payload": None, "ts": 0.0}
+CURRENT_TRACK_TTL = 5.0  # seconds
+
+
+def invalidate_current_track_cache():
+    current_track_cache["ts"] = 0.0
+
+
 @app.route('/api/current-track')
 def get_current_track():
     if not is_authenticated():
         return jsonify({"error": "Not authenticated"}), 401
+
+    if time.time() - current_track_cache["ts"] < CURRENT_TRACK_TTL:
+        return jsonify(current_track_cache["payload"])
 
     try:
         current = sp.current_playback()
@@ -507,6 +524,8 @@ def get_current_track():
                     is_playing = False
                     repeat_state = 'off'
                 else:
+                    current_track_cache["payload"] = None
+                    current_track_cache["ts"] = time.time()
                     return jsonify(None)
         
         # Check if liked
@@ -518,7 +537,7 @@ def get_current_track():
         album_cover = track['album']['images'][0]['url'] if track.get('album') and track['album'].get('images') else None
         album_id = track['album']['id'] if track.get('album') else None
         
-        return jsonify({
+        payload = {
             "id": track['id'],
             "name": track['name'],
             "artist": ", ".join([artist['name'] for artist in track['artists']]),
@@ -530,7 +549,10 @@ def get_current_track():
             "is_playing": is_playing,
             "repeat_state": repeat_state,
             "uri": track['uri']
-        })
+        }
+        current_track_cache["payload"] = payload
+        current_track_cache["ts"] = time.time()
+        return jsonify(payload)
 
     except spotipy.exceptions.SpotifyException as e:
         if e.http_status == 429:
@@ -642,6 +664,7 @@ def toggle_repeat():
         
     try:
         sp.repeat(state)
+        invalidate_current_track_cache()
         return jsonify({"success": True})
     except Exception as e:
         print(f"Error toggling repeat: {e}")
@@ -728,6 +751,7 @@ def toggle_playlist():
         else:
             return jsonify({"error": "Invalid action"}), 400
 
+        invalidate_current_track_cache()  # is_liked may have changed
         return jsonify({"success": True, "message": message, "artist_followed": artist_followed})
 
     except Exception as e:

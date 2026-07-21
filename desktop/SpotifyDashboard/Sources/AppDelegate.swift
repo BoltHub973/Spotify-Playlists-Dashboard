@@ -84,10 +84,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Apply Dock/Menu Bar mode
         applyAppMode()
 
-        // Wait for backend to be ready with progress reporting
+        // Wait for backend to be ready with progress reporting.
+        // Backend readiness only fills the ring to 60% — the remainder is
+        // filled while waiting for the current track to render, so the ring
+        // completing coincides with the track actually being on screen.
         backendManager.waitForReady(progress: { [weak self] progress in
             DispatchQueue.main.async {
-                self?.loadingViewController?.setProgress(CGFloat(progress))
+                self?.loadingViewController?.setProgress(CGFloat(progress) * 0.6)
             }
         }) { [weak self] in
             DispatchQueue.main.async {
@@ -172,7 +175,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         hasLoadedInitialPage = true
         webViewController.loadPage(initialPage)
 
-        // Poll WebView until the DOM actually contains the rendered playlists
+        // Poll the WebView until the currently playing track has actually
+        // been rendered (script.js sets window.__trackReady once the header
+        // shows the track, or a settled "nothing playing"). This way the
+        // loading screen lifts exactly when the track is visible.
+        let maxAttempts = 75  // 75 × 0.2s = 15s safety cap
         func checkWebViewReady(attemptsLeft: Int) {
             guard attemptsLeft > 0 else {
                 self.loadingViewController?.dismiss { [weak self] in
@@ -181,9 +188,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 return
             }
 
-            let js = "document.getElementById('playlist-grid') ? document.getElementById('playlist-grid').children.length : -1"
+            // Creep the ring from 60% toward 95% while we wait for the track
+            let waited = CGFloat(maxAttempts - attemptsLeft) / CGFloat(maxAttempts)
+            self.loadingViewController?.setProgress(0.6 + 0.35 * waited)
+
+            let js = "window.__trackReady === true"
             self.webViewController.webView.evaluateJavaScript(js) { [weak self] (result, _) in
-                if let count = result as? Int, count > 0 {
+                if let ready = result as? Bool, ready {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                         self?.loadingViewController?.dismiss {
                             self?.loadingViewController = nil
@@ -196,7 +207,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         }
-        checkWebViewReady(attemptsLeft: 50)
+        checkWebViewReady(attemptsLeft: maxAttempts)
     }
 
     func applicationWillTerminate(_ notification: Notification) {

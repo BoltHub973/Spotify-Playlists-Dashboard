@@ -87,13 +87,32 @@ function handleVisibilityChange() {
 
 let playlistRetryCount = 0;
 const MAX_PLAYLIST_RETRIES = 30;
+let playlistsLoaded = false; // true once fetchPlaylists has real data
 
 async function init() {
-  // 1. Fetch initial Playlists (Static info)
-  await fetchPlaylists();
+  // Instant render on page switches: every page is a full document load, so
+  // without this the header sits on "Loading..." until the first poll returns.
+  // The track playing 200ms ago is almost certainly still playing — render it
+  // immediately from localStorage and let the first poll confirm or correct.
+  try {
+    const cached = JSON.parse(localStorage.getItem("lastKnownTrack") || "null");
+    if (cached && cached.track && Date.now() - cached.ts < 60000) {
+      currentTrack = cached.track;
+      updateTrackInfo(cached.track);
+      checkPlaylists(cached.track.uri);
+    }
+  } catch (e) {
+    console.warn("Failed to restore last known track:", e);
+  }
 
-  // 2. Start Polling for Current Track
+  // Start polling for the current track immediately — it only needs the
+  // backend to be up, not the (slow) playlist warm-up. The native loading
+  // screen watches window.__trackReady so the track is visible the moment
+  // the loading animation completes.
   pollCurrentTrack();
+
+  // Fetch playlists in parallel; the grid shows its own loading placeholder.
+  fetchPlaylists();
 }
 
 async function fetchPlaylists() {
@@ -148,6 +167,7 @@ async function fetchPlaylists() {
       }
     } else {
       playlistRetryCount = 0;
+      playlistsLoaded = true;
       // Render immediately (all inactive initially) for speed
       renderPlaylists();
     }
@@ -297,9 +317,24 @@ async function pollCurrentTrack() {
             }
           }
         }
+        // Remember for instant rendering on the next page load
+        try {
+          localStorage.setItem(
+            "lastKnownTrack",
+            JSON.stringify({ ts: Date.now(), track }),
+          );
+        } catch (e) { /* storage full/unavailable — nonfatal */ }
       } else {
         updateTrackInfo(null);
+        try {
+          localStorage.removeItem("lastKnownTrack");
+        } catch (e) { /* nonfatal */ }
       }
+      // Either outcome is a settled answer — the native loading screen can
+      // lift. Set unconditionally: when the optimistic restore already
+      // rendered this same track, the change-guard above skips, and the flag
+      // must still flip.
+      window.__trackReady = true;
     } else {
       // Other errors (500, etc)
       consecutiveErrors++;
@@ -463,6 +498,12 @@ function isSpecialPlaylist(playlist) {
 
 function renderPlaylists() {
   const grid = document.getElementById("playlist-grid");
+
+  // The track poller runs in parallel with the playlist fetch and triggers
+  // renders; don't let those wipe the "Loading playlists…" placeholder
+  // before any playlist data has arrived.
+  if (!playlistsLoaded && allPlaylists.length === 0) return;
+
   grid.innerHTML = "";
 
   const isTracker = document.body.classList.contains("tracker-page");
@@ -778,12 +819,14 @@ function toggleSidebar() {
       sidebarState.isOpen = true;
       sidebar.classList.add("open");
       document.querySelector(".playlist-section")?.classList.add("sidebar-open");
+      document.body.classList.add("sidebar-open");
     }
   } else {
     // Closing
     sidebarState.isOpen = false;
     sidebar.classList.remove("open");
     document.querySelector(".playlist-section")?.classList.remove("sidebar-open");
+    document.body.classList.remove("sidebar-open");
   }
 }
 
@@ -808,6 +851,7 @@ async function showArtistSidebar(track) {
       sidebarState.isOpen = true;
       sidebar.classList.add("open");
       document.querySelector(".playlist-section")?.classList.add("sidebar-open");
+      document.body.classList.add("sidebar-open");
     }
     return;
   }
@@ -821,6 +865,7 @@ async function showArtistSidebar(track) {
     sidebarState.isOpen = true;
     sidebar.classList.add("open");
     document.querySelector(".playlist-section")?.classList.add("sidebar-open");
+    document.body.classList.add("sidebar-open");
   }
 
     try {
@@ -1185,6 +1230,17 @@ document.addEventListener("DOMContentLoaded", () => {
   const isQueue = document.body.classList.contains("queue-page");
   if (!isQueue) {
     initSidebar();
+  }
+});
+
+// ⌘S fallback: the desktop app's native key monitor normally handles ⌘S and
+// swallows the event before it reaches the page, so this never double-fires.
+// It only catches what the native layer misses — and makes ⌘S work when the
+// dashboard is opened in a regular browser (where it also blocks "Save Page").
+document.addEventListener("keydown", (e) => {
+  if (e.metaKey && !e.altKey && !e.shiftKey && !e.ctrlKey && e.key.toLowerCase() === "s") {
+    e.preventDefault();
+    toggleSidebar();
   }
 });
 
