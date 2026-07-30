@@ -97,13 +97,16 @@ def load_page_playlists(page_config, sp_name_to_id):
     seen_names = set()
 
     for item in page_config.get('playlists', []):
-        # Handle dividers
+        # Handle dividers. An optional "label" names the section that follows
+        # (rendered as a vertical rail on the Tracker/Queue pages); without one
+        # the divider renders as a plain separator line.
         if item.get('type') == 'divider':
             resolved.append({
                 'name': 'DIVIDER',
                 'spotify_name': 'DIVIDER',
                 'id': 'DIVIDER',
-                'is_divider': True
+                'is_divider': True,
+                'label': (item.get('label') or '').strip() or None
             })
             continue
 
@@ -535,10 +538,13 @@ def get_current_track():
         is_liked = sp.current_user_saved_tracks_contains([track['id']])[0]
 
         # Get album info
-        album_name = track['album']['name'] if track.get('album') else 'Unknown Album'
-        album_cover = track['album']['images'][0]['url'] if track.get('album') and track['album'].get('images') else None
-        album_id = track['album']['id'] if track.get('album') else None
-        
+        album = track.get('album') or {}
+        album_name = album.get('name', 'Unknown Album')
+        album_cover = album['images'][0]['url'] if album.get('images') else None
+        album_id = album.get('id')
+        album_total_tracks = album.get('total_tracks')
+        album_release_date = album.get('release_date')
+
         payload = {
             "id": track['id'],
             "name": track['name'],
@@ -547,6 +553,8 @@ def get_current_track():
             "album": album_name,
             "album_id": album_id,
             "album_cover": album_cover,
+            "album_total_tracks": album_total_tracks,
+            "album_release_date": album_release_date,
             "is_liked": is_liked,
             "is_playing": is_playing,
             "repeat_state": repeat_state,
@@ -1065,4 +1073,9 @@ def toggle_album_library():
 
 
 if __name__ == '__main__':
-    app.run(port=8888, debug=False)
+    # threaded=True is load-bearing: Werkzeug is single-threaded by default, so
+    # every request queues behind the slowest one in flight. During cache
+    # warm-up a live /api/check-playlists pass can hold the worker for seconds,
+    # which delayed queued /api/open-in-spotify calls — Spotify then opened
+    # seconds after an unrelated later click (reported 07-29-26).
+    app.run(port=8888, debug=False, threaded=True)

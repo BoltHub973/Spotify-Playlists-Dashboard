@@ -269,6 +269,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         mainWindow.orderOut(nil)
     }
 
+    /// Settings → Grid Shortcuts → Customize…: bring the dashboard forward and
+    /// open the in-page KEYBOARD SHORTCUTS modal (navigating to Playlists first
+    /// when another page is showing).
+    func openGridShortcutsPanel() {
+        showWindowOnCurrentScreen()
+        webViewController.openGridShortcutsPanel()
+    }
+
     func toggleWindow() {
         if mainWindow.isVisible {
             hideWindow()

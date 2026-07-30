@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700&family=Rajdhani:wght@300;400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700&family=Rajdhani:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="styles.css" />
@@ -24,12 +24,16 @@
           style="display: none"
         />
         <div class="track-info">
+          <div class="np-eyebrow"><span class="np-dot"></span>NOW PLAYING</div>
           <h1 class="track-title" id="track-title">Loading...</h1>
           <div class="artist-row">
             <h2 class="artist-name" id="artist-name">Loading...</h2>
           </div>
         </div>
         <div class="page-identifier">PLAYLISTS</div>
+        <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Switch color theme">
+          <svg id="theme-toggle-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"></svg>
+        </button>
         <img id="repeat-icon" class="repeat-icon" src="images/Playlists/repeat-green.png" alt="Toggle Repeat" style="display: none" />
         <div class="visualizer">
           <!-- Waveform bars generated dynamically by JS -->
@@ -59,6 +63,7 @@
             <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2"></rect><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 14h.01M18 14h.01M9 14h6"></path></svg>
           </button>
         </div>
+        <div id="mode-banner" class="mode-banner" hidden></div>
         <div class="playlist-grid" id="playlist-grid">
           <!-- Playlist Items will be injected here by JS -->
         </div>
@@ -171,6 +176,14 @@
             <span class="shortcut-desc">Toggle open-in-Spotify mode</span>
           </div>
           <button class="shortcut-recorder" id="recorder-spotify" type="button" title="Click, then press the new shortcut. Esc cancels.">S</button>
+        </div>
+
+        <div class="shortcut-row">
+          <div class="shortcut-info">
+            <span class="shortcut-name">THEME</span>
+            <span class="shortcut-desc">Switch between dark and Daybreak (all pages)</span>
+          </div>
+          <button class="shortcut-recorder" id="recorder-theme" type="button" title="Click, then press the new shortcut. Esc cancels.">⇧⌘L</button>
         </div>
 
         <p class="shortcuts-note">Click a key, then press the new shortcut. Esc cancels. ⌘-click any playlist to open it in Spotify.</p>

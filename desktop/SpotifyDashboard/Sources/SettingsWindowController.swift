@@ -29,7 +29,7 @@ class SettingsWindowController {
         }
 
         let win = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 480, height: 520),
+            contentRect: NSRect(x: 0, y: 0, width: 480, height: 610),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -230,6 +230,36 @@ class SettingsWindowController {
         sidebarClearBtn.target = self
         sidebarClearBtn.action = #selector(clearSidebarShortcut)
         container.addSubview(sidebarClearBtn)
+
+        // ─────────────────────────────────────────
+        // Grid Shortcuts section (Playlists page NEW / EDIT / SPOTIFY)
+        // ─────────────────────────────────────────
+        yOffset -= 20
+        let divider3 = NSBox(frame: NSRect(x: padding, y: yOffset, width: container.bounds.width - padding * 2, height: 1))
+        divider3.boxType = .separator
+        container.addSubview(divider3)
+
+        yOffset -= 16
+        yOffset -= 24
+        let gridTitle = makeLabel("Grid Shortcuts", size: 16, bold: true)
+        gridTitle.frame = NSRect(x: padding, y: yOffset, width: 300, height: 24)
+        container.addSubview(gridTitle)
+
+        yOffset -= 10
+        let gridSubtitle = makeLabel("NEW / EDIT / SPOTIFY keys on the Playlists page (defaults N · E · S)", size: 12, bold: false)
+        gridSubtitle.textColor = NSColor.secondaryLabelColor
+        gridSubtitle.frame = NSRect(x: padding, y: yOffset, width: 420, height: 16)
+        container.addSubview(gridSubtitle)
+
+        yOffset -= 12
+        yOffset -= rowHeight
+
+        let gridButton = NSButton(frame: NSRect(x: padding, y: yOffset, width: 190, height: 30))
+        gridButton.title = "Customize Shortcuts…"
+        gridButton.bezelStyle = .rounded
+        gridButton.target = self
+        gridButton.action = #selector(openGridShortcuts)
+        container.addSubview(gridButton)
     }
 
     /// Refresh the sidebar recorder's display from localStorage
@@ -250,6 +280,10 @@ class SettingsWindowController {
 
         hotkeyManager.unregister(page: page)
         recorderViews[page]?.clearShortcut()
+    }
+
+    @objc private func openGridShortcuts() {
+        (NSApp.delegate as? AppDelegate)?.openGridShortcutsPanel()
     }
 
     @objc private func clearSidebarShortcut() {

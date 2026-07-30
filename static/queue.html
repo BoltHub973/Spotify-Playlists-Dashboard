@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700&family=Rajdhani:wght@300;400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700&family=Rajdhani:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="styles.css" />
@@ -18,9 +18,14 @@
       <header class="current-track queue-header">
         <img id="album-cover" class="album-cover" src="" alt="Album Cover" style="display: none" />
         <div class="track-info">
+          <div class="np-eyebrow"><span class="np-dot"></span>CURRENT ALBUM</div>
           <h1 class="album-name" id="album-name">Loading...</h1>
+          <div class="album-meta" id="album-meta"></div>
         </div>
         <div class="page-identifier">QUEUE</div>
+        <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Switch color theme">
+          <svg id="theme-toggle-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"></svg>
+        </button>
         <img id="repeat-icon" class="repeat-icon" src="images/Queue/repeat-orange.png" alt="Toggle Repeat" style="display: none" />
         <div class="visualizer">
           <!-- Waveform bars generated dynamically by JS -->

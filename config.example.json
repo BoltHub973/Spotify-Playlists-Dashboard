@@ -37,7 +37,7 @@
           "display_name": "New Discoveries",
           "spotify_name": "Another Tracking Playlist"
         },
-        { "type": "divider" },
+        { "type": "divider", "label": "SECTION NAME (optional — renders as a vertical rail)" },
         {
           "display_name": "Established Favorites",
           "spotify_name": "Your Established Artists Playlist"
