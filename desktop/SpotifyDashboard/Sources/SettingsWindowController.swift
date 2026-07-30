@@ -29,7 +29,10 @@ class SettingsWindowController {
         }
 
         let win = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 480, height: 610),
+            // Height must cover the full buildSettingsUI stack (598pt of rows
+            // and gaps) plus 24pt padding top and bottom, or the last section
+            // clips below the window edge.
+            contentRect: NSRect(x: 0, y: 0, width: 480, height: 650),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false

@@ -22,5 +22,6 @@ Local web dashboard + native macOS wrapper that shows which of your playlists co
 - Frontend edits only need a browser/page reload (no-cache headers); `app.py` edits need a backend restart (quit + reopen the app).
 - The NAGA NEXT SHOW tiles get a special holographic treatment (`isSpecialPlaylist` in `script.js`) — keep it in any restyle.
 - Grid keyboard shortcuts (N/E/S defaults, plus THEME on ⌘⇧L) are stored in `localStorage` (`gridShortcuts.v1`); the native layer swallows only the sidebar shortcut (default ⌘S).
+- The native Settings window (`SettingsWindowController.swift`) lays out with manual frames against a fixed `contentRect` height — adding a section requires re-summing the yOffset stack and bumping the height, or the last section clips invisibly below the window edge (bit us 07-29-26).
 - Dual theme: dark default + "Daybreak" light (`localStorage` `dashTheme`, `body.theme-light`). All colors flow from the token sheet at the top of `styles.css` — never hardcode a surface color outside it; light overrides live in the `body.theme-light` blocks.
 - Tracker/Queue divider entries accept an optional `"label"` in `config.json` — labeled dividers render their section as a vertical rail; unlabeled ones stay plain separator lines.

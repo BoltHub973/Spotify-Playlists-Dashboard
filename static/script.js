@@ -673,15 +673,6 @@ function renderPlaylists() {
 
     item.appendChild(nameSpan);
 
-    // Queue page: every tile moves the whole album — show how many tracks
-    if (isQueue && currentTrack && currentTrack.album_total_tracks) {
-      const chip = document.createElement("span");
-      chip.className = "tile-meta";
-      chip.textContent = `+${currentTrack.album_total_tracks}`;
-      chip.title = `Adds or removes all ${currentTrack.album_total_tracks} tracks of this album`;
-      item.appendChild(chip);
-    }
-
     // Status Indicator (Checkmark)
     const indicator = document.createElement("div");
     indicator.className = "status-indicator";

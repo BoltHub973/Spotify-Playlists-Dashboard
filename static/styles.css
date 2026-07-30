@@ -452,22 +452,6 @@ body.theme-light .playlist-item:hover {
   min-width: 0;
 }
 
-/* Queue page: mono track-count chip on every tile ("+14") */
-.tile-meta {
-  font-family: var(--font-mono);
-  font-size: clamp(0.82rem, 0.8vw, 0.92rem);
-  font-weight: 500;
-  color: var(--text-secondary);
-  font-variant-numeric: tabular-nums;
-  flex-shrink: 0;
-  margin-left: 8px;
-  padding-right: 2px;
-}
-
-.playlist-item.active .tile-meta {
-  color: rgba(255, 255, 255, 0.85);
-}
-
 /* Staggered tile entry — plays once per track change (delay set inline) */
 .tile-enter {
   animation: tileEnter 0.45s ease-out both;
@@ -858,8 +842,12 @@ body.queue-page .app-container {
    Repeat Icon
    ======================================== */
 .repeat-icon {
-  width: clamp(20px, 2.5vh, 32px);
-  height: clamp(20px, 2.5vh, 32px);
+  /* Same box as .theme-toggle, with padding insetting the artwork to match
+     the toggle's 62% glyph — the two header icons read as one size. */
+  box-sizing: border-box;
+  width: clamp(28px, 3vh, 36px);
+  height: clamp(28px, 3vh, 36px);
+  padding: clamp(5px, 0.57vh, 7px);
   cursor: pointer;
   opacity: 0.3;
   transition: all 0.3s ease;
@@ -2149,10 +2137,6 @@ body.theme-light .tile-delete-btn {
   color: rgba(20, 28, 10, 0.65);
   background: rgba(255, 255, 255, 0.65);
   border-color: rgba(20, 28, 10, 0.3);
-}
-
-body.theme-light .playlist-item.active .tile-meta {
-  color: rgba(255, 255, 255, 0.9);
 }
 
 body.theme-light .editor-modal {
