@@ -142,6 +142,10 @@ class BackendManager {
 
     /// Start the Flask backend as a subprocess
     func start() {
+        // If a previous app instance died without cleanup (SIGTERM/SIGKILL),
+        // its backend may still hold the port with stale code — reap it first.
+        reapOrphanedBackend()
+
         // Check if backend is already running
         if isBackendRunning() {
             print("[BackendManager] Backend already running on port \(port)")
@@ -202,19 +206,84 @@ class BackendManager {
         }
     }
 
-    /// Stop the Flask backend
+    /// Stop the Flask backend. Blocks (≤2s) until the child has actually
+    /// exited — termination paths (quit, SIGTERM) exit the app right after
+    /// calling this, so an async grace period would never run and the child
+    /// would survive as an orphan holding the port.
     func stop() {
         guard let proc = process, proc.isRunning else { return }
         print("[BackendManager] Stopping Flask backend...")
         proc.terminate()
 
-        // Give it a moment to shut down gracefully
-        DispatchQueue.global().asyncAfter(deadline: .now() + 2.0) {
-            if proc.isRunning {
-                proc.interrupt()
-            }
+        let deadline = Date().addingTimeInterval(2.0)
+        while proc.isRunning && Date() < deadline {
+            usleep(50_000)
+        }
+        if proc.isRunning {
+            kill(proc.processIdentifier, SIGKILL)
         }
         process = nil
+    }
+
+    // MARK: - Orphaned backend reaping
+
+    /// If the port is held by a dashboard backend whose parent app died (it was
+    /// reparented to launchd, so it serves whatever code was current when the
+    /// dead instance spawned it), terminate it so start() launches a fresh one.
+    /// A backend with a living parent — e.g. one started deliberately from a
+    /// dev shell — is left alone and adopted as before.
+    private func reapOrphanedBackend() {
+        let pids = listeningPIDs(onPort: port)
+        guard !pids.isEmpty else { return }
+        // Only touch processes that answer our /health check — never kill an
+        // unrelated server that happens to sit on the port.
+        guard isBackendRunning() else { return }
+
+        let orphans = pids.filter { parentPID(of: $0) == 1 }
+        guard !orphans.isEmpty else {
+            print("[BackendManager] Port \(port) served by a backend with a living parent; adopting it")
+            return
+        }
+
+        for pid in orphans {
+            print("[BackendManager] Terminating orphaned backend (PID \(pid))")
+            kill(pid, SIGTERM)
+        }
+        let deadline = Date().addingTimeInterval(3.0)
+        while Date() < deadline && !Set(listeningPIDs(onPort: port)).isDisjoint(with: orphans) {
+            usleep(100_000)
+        }
+        for pid in listeningPIDs(onPort: port) where orphans.contains(pid) {
+            print("[BackendManager] Orphan \(pid) ignored SIGTERM; sending SIGKILL")
+            kill(pid, SIGKILL)
+        }
+        // Let the socket actually close before we try to bind it.
+        usleep(200_000)
+    }
+
+    /// PIDs listening on the given local TCP port.
+    private func listeningPIDs(onPort port: Int) -> [pid_t] {
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
+        proc.arguments = ["-ti", "tcp:\(port)", "-sTCP:LISTEN"]
+        let pipe = Pipe()
+        proc.standardOutput = pipe
+        proc.standardError = FileHandle.nullDevice
+        do { try proc.run() } catch { return [] }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        proc.waitUntilExit()
+        guard let out = String(data: data, encoding: .utf8) else { return [] }
+        return out.split(whereSeparator: \.isNewline)
+            .compactMap { pid_t($0.trimmingCharacters(in: .whitespaces)) }
+    }
+
+    /// Parent PID of a process (1 = launchd, i.e. orphaned), or nil if gone.
+    private func parentPID(of pid: pid_t) -> pid_t? {
+        var info = kinfo_proc()
+        var size = MemoryLayout<kinfo_proc>.stride
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
+        guard sysctl(&mib, 4, &info, &size, nil, 0) == 0, size > 0 else { return nil }
+        return info.kp_eproc.e_ppid
     }
 
     /// Check if the backend is responding

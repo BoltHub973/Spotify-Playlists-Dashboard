@@ -26,6 +26,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var pendingInitialPage: DashboardPage?
     private var hasLoadedInitialPage = false
 
+    // Keep the dispatch signal sources alive for the app's lifetime.
+    private var terminationSignalSources: [DispatchSourceSignal] = []
+
     private var isMenuBarMode: Bool {
         get { UserDefaults.standard.bool(forKey: "menuBarMode") }
         set { UserDefaults.standard.set(newValue, forKey: "menuBarMode") }
@@ -44,6 +47,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         backendManager = BackendManager()
+
+        // SIGTERM (pkill, shutdown) and SIGINT (Ctrl-C in a dev shell) bypass
+        // applicationWillTerminate, which would orphan the Flask child on the
+        // port with stale code. Catch them and stop the backend before exiting.
+        installTerminationSignalHandlers()
 
         // Create and show the main window first so any preflight error is
         // shown inside the app rather than as an external dialog.
@@ -213,6 +221,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         hotkeyManager?.unregisterAll()
         backendManager?.stop()
+    }
+
+    private func installTerminationSignalHandlers() {
+        for sig in [SIGTERM, SIGINT] {
+            // Ignore the default disposition so the dispatch source gets it.
+            signal(sig, SIG_IGN)
+            let source = DispatchSource.makeSignalSource(signal: sig, queue: .main)
+            source.setEventHandler { [weak self] in
+                print("[AppDelegate] Caught termination signal; stopping backend")
+                self?.hotkeyManager?.unregisterAll()
+                self?.backendManager?.stop()  // blocks until the child is dead
+                exit(0)
+            }
+            source.resume()
+            terminationSignalSources.append(source)
+        }
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {

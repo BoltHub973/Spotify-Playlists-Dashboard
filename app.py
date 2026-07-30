@@ -15,6 +15,25 @@ from io import BytesIO
 
 load_dotenv()
 
+# ─────────────────────────────────────────────
+# Parent-death watchdog
+# ─────────────────────────────────────────────
+# When the desktop app that spawned us dies without cleanup (SIGKILL, crash),
+# this process gets reparented to launchd (ppid 1) and would otherwise keep
+# port 8888 with stale code, hijacking the next app launch. Exit instead.
+# Guarded on the *initial* ppid so a backend deliberately launched by launchd
+# would not immediately kill itself.
+_initial_ppid = os.getppid()
+
+def _watch_parent():
+    while True:
+        time.sleep(3)
+        if os.getppid() == 1 and _initial_ppid != 1:
+            print("Parent process died; shutting down backend to free port 8888.")
+            os._exit(0)
+
+threading.Thread(target=_watch_parent, daemon=True).start()
+
 app = Flask(__name__, static_folder='static')
 
 # Configuration
