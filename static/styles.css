@@ -35,7 +35,6 @@
   --chrome-border: rgba(255, 255, 255, 0.1);
   --tile-bg: rgba(255, 255, 255, 0.03);
   --tile-border: rgba(255, 255, 255, 0.05);
-  --scanline-alpha: 0.14;
 }
 
 /* Daybreak — same cockpit at dawn: paper substrate, identical structure,
@@ -63,10 +62,9 @@ body.theme-light {
   --chrome-border: rgba(20, 28, 10, 0.12);
   --tile-bg: rgba(20, 28, 10, 0.045);
   --tile-border: rgba(20, 28, 10, 0.12);
-  --scanline-alpha: 0.045;
 }
 
-/* Per-page accent (eyebrow, brackets, rails). RGB triple for alpha washes. */
+/* Per-page accent (eyebrow, rails). RGB triple for alpha washes. */
 body.playlists-page { --page-accent: var(--neon-green); --page-accent-rgb: 132, 255, 0; }
 body.tracker-page   { --page-accent: var(--neon-purple); --page-accent-rgb: 188, 19, 254; }
 body.queue-page     { --page-accent: var(--neon-orange); --page-accent-rgb: 255, 140, 0; }
@@ -158,29 +156,6 @@ body {
   gap: clamp(12px, 1.5vw, 24px);
   position: relative; /* Anchor for centered title */
   transition: padding-right 0.45s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-/* HUD corner brackets, tinted per page */
-.current-track::before,
-.current-track::after {
-  content: "";
-  position: absolute;
-  width: 14px;
-  height: 14px;
-  border: 2px solid rgba(var(--page-accent-rgb), 0.5);
-  pointer-events: none;
-}
-.current-track::before {
-  top: 5px;
-  left: 5px;
-  border-right: none;
-  border-bottom: none;
-}
-.current-track::after {
-  bottom: 5px;
-  right: 5px;
-  border-left: none;
-  border-top: none;
 }
 
 /* NOW PLAYING / CURRENT ALBUM eyebrow with pulse dot */
@@ -1993,32 +1968,6 @@ body.edit-mode .playlist-item .playlist-name {
    Phosphor Cockpit v2 — ambient layer, section identity,
    designed states, and the Daybreak overrides (07-29-26)
    ════════════════════════════════════════════════════════════ */
-
-/* Grain + scanline ambient layer over the album-color gradient */
-.app-container::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 40;
-  pointer-events: none;
-  opacity: 0.04;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-}
-
-.app-container::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 40;
-  pointer-events: none;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 3px,
-    rgba(0, 0, 0, var(--scanline-alpha)) 3px,
-    rgba(0, 0, 0, var(--scanline-alpha)) 5px
-  );
-}
 
 /* Grid section headers — "CONTAINS TRACK · 03" / "ADD TO · 58" */
 .grid-section-head {
