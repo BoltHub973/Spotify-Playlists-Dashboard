@@ -22,6 +22,7 @@ let activePlaylistsMap = new Set(); // Set of Playlist IDs that contain the curr
 let justSavedId = null; // Playlist ID that was just saved — gets a one-shot "save" animation
 let colorCache = {}; // Cache extracted colors by track ID
 let editMode = false; // Playlists page: tiles open the editor instead of toggling the track
+let spotifyMode = false; // Playlists page: tiles open in the Spotify desktop app instead of toggling
 
 // Load color cache from localStorage
 try {
@@ -528,13 +529,26 @@ function renderPlaylists() {
     if (isSpecialPlaylist(playlist)) item.classList.add("naga-special");
 
     if (editMode && !isTracker && !isQueue) {
-      // Edit mode: clicking a tile edits it instead of toggling the track
       item.classList.add("editable");
-      item.onclick = () => openEditor("edit", playlist);
-    } else {
-      // Use ID for toggling
-      item.onclick = () => togglePlaylist(playlist);
     }
+    item.onclick = (e) => {
+      // ⌘-click always opens the playlist in the Spotify desktop app,
+      // regardless of mode (works on every page).
+      if (e.metaKey) {
+        openPlaylistInSpotify(playlist);
+        return;
+      }
+      if (editMode && !isTracker && !isQueue) {
+        // Edit mode: clicking a tile edits it instead of toggling the track
+        openEditor("edit", playlist);
+      } else if (spotifyMode && !isTracker && !isQueue) {
+        // Spotify mode: clicking a tile opens it in the Spotify desktop app
+        openPlaylistInSpotify(playlist);
+      } else {
+        // Use ID for toggling
+        togglePlaylist(playlist);
+      }
+    };
 
     const nameSpan = document.createElement("span");
     nameSpan.className = "playlist-name";
@@ -723,9 +737,31 @@ async function togglePlaylist(playlist) {
 }
 
 // ============================================
+// Open in Spotify desktop app
+// ============================================
+async function openPlaylistInSpotify(playlist) {
+  if (!playlist || !playlist.id || playlist.is_divider) return;
+  try {
+    const res = await fetch("/api/open-in-spotify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ playlist_id: playlist.id }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || `Request failed (${res.status})`);
+    }
+    showToast(`Opening “${playlist.spotify_name || playlist.name}” in Spotify`);
+  } catch (e) {
+    console.error("Error opening playlist in Spotify:", e);
+    showToast("Couldn’t open in Spotify — is the app installed?", "error");
+  }
+}
+
+// ============================================
 // Toast Notifications
 // ============================================
-function showToast(message) {
+function showToast(message, type = "success") {
   let container = document.getElementById("toast-container");
   if (!container) {
     container = document.createElement("div");
@@ -734,7 +770,7 @@ function showToast(message) {
   }
 
   const toast = document.createElement("div");
-  toast.className = "toast";
+  toast.className = type === "error" ? "toast error" : "toast";
   toast.textContent = message;
   container.appendChild(toast);
 
@@ -1259,11 +1295,13 @@ const editorState = {
 function initPlaylistEditor() {
   const editBtn = document.getElementById("edit-mode-btn");
   const addBtn = document.getElementById("add-playlist-btn");
+  const spotifyBtn = document.getElementById("spotify-mode-btn");
   const overlay = document.getElementById("playlist-editor-overlay");
   if (!editBtn || !addBtn || !overlay) return;
 
   editBtn.addEventListener("click", toggleEditMode);
   addBtn.addEventListener("click", () => openEditor("add"));
+  if (spotifyBtn) spotifyBtn.addEventListener("click", toggleSpotifyMode);
 
   document.getElementById("editor-cancel").addEventListener("click", closeEditor);
   document.getElementById("editor-save").addEventListener("click", saveEditor);
@@ -1276,17 +1314,215 @@ function initPlaylistEditor() {
 
   const search = document.getElementById("editor-spotify-search");
   search.addEventListener("input", () => renderSpotifyPicker(search.value));
+
+  initGridShortcuts();
 }
 
 function toggleEditMode() {
   editMode = !editMode;
+  if (editMode && spotifyMode) setSpotifyMode(false); // modes are exclusive
   document.body.classList.toggle("edit-mode", editMode);
   const btn = document.getElementById("edit-mode-btn");
   if (btn) {
     btn.classList.toggle("active", editMode);
-    btn.textContent = editMode ? "✓ DONE" : "✎ EDIT";
+    const label = btn.querySelector(".btn-label");
+    if (label) label.textContent = editMode ? "✓ DONE" : "✎ EDIT";
   }
   renderPlaylists();
+}
+
+function setSpotifyMode(on) {
+  spotifyMode = on;
+  document.body.classList.toggle("spotify-mode", spotifyMode);
+  const btn = document.getElementById("spotify-mode-btn");
+  if (btn) btn.classList.toggle("active", spotifyMode);
+  renderPlaylists();
+}
+
+function toggleSpotifyMode() {
+  if (!spotifyMode && editMode) toggleEditMode(); // modes are exclusive
+  setSpotifyMode(!spotifyMode);
+}
+
+// ============================================
+// Customizable grid shortcuts (playlists page)
+// Defaults: N = new, E = edit, S = spotify. Click-to-record in the
+// KEYBOARD SHORTCUTS modal; persisted in localStorage.
+// ============================================
+const SHORTCUTS_STORAGE_KEY = "gridShortcuts.v1";
+const SHORTCUT_DEFAULTS = {
+  new: { key: "n", meta: false, ctrl: false, alt: false, shift: false },
+  edit: { key: "e", meta: false, ctrl: false, alt: false, shift: false },
+  spotify: { key: "s", meta: false, ctrl: false, alt: false, shift: false },
+};
+let gridShortcuts = loadGridShortcuts();
+let recordingAction = null; // action id while a recorder is capturing
+
+function loadGridShortcuts() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(SHORTCUTS_STORAGE_KEY) || "{}");
+    const merged = {};
+    for (const action of Object.keys(SHORTCUT_DEFAULTS)) {
+      const s = stored[action];
+      merged[action] =
+        s && typeof s.key === "string" && s.key
+          ? { key: s.key, meta: !!s.meta, ctrl: !!s.ctrl, alt: !!s.alt, shift: !!s.shift }
+          : { ...SHORTCUT_DEFAULTS[action] };
+    }
+    return merged;
+  } catch (e) {
+    return {
+      new: { ...SHORTCUT_DEFAULTS.new },
+      edit: { ...SHORTCUT_DEFAULTS.edit },
+      spotify: { ...SHORTCUT_DEFAULTS.spotify },
+    };
+  }
+}
+
+function saveGridShortcuts() {
+  try {
+    localStorage.setItem(SHORTCUTS_STORAGE_KEY, JSON.stringify(gridShortcuts));
+  } catch (e) { /* storage unavailable — nonfatal */ }
+}
+
+function shortcutLabel(sc) {
+  const specials = {
+    " ": "Space", enter: "↩", escape: "Esc", backspace: "⌫", delete: "⌦",
+    tab: "⇥", arrowup: "↑", arrowdown: "↓", arrowleft: "←", arrowright: "→",
+  };
+  const k = sc.key.toLowerCase();
+  const keyName = specials[k] || sc.key.toUpperCase();
+  return (
+    (sc.ctrl ? "⌃" : "") + (sc.alt ? "⌥" : "") +
+    (sc.shift ? "⇧" : "") + (sc.meta ? "⌘" : "") + keyName
+  );
+}
+
+function refreshShortcutLabels() {
+  for (const action of Object.keys(gridShortcuts)) {
+    const label = shortcutLabel(gridShortcuts[action]);
+    const hint = document.getElementById(`key-hint-${action}`);
+    if (hint) hint.textContent = label;
+    const recorder = document.getElementById(`recorder-${action}`);
+    if (recorder && recordingAction !== action) recorder.textContent = label;
+  }
+  // Surface the live shortcut in each button's tooltip
+  const tips = {
+    new: ["add-playlist-btn", "Add a playlist tile"],
+    edit: ["edit-mode-btn", "Toggle edit mode"],
+    spotify: ["spotify-mode-btn", "Toggle open-in-Spotify mode — clicking a playlist opens it in the Spotify app"],
+  };
+  for (const action of Object.keys(tips)) {
+    const [id, desc] = tips[action];
+    const btn = document.getElementById(id);
+    if (btn) btn.title = `${desc} (${shortcutLabel(gridShortcuts[action])})`;
+  }
+}
+
+function matchesShortcut(e, sc) {
+  return (
+    e.key.toLowerCase() === sc.key.toLowerCase() &&
+    e.metaKey === sc.meta && e.ctrlKey === sc.ctrl &&
+    e.altKey === sc.alt && e.shiftKey === sc.shift
+  );
+}
+
+function initGridShortcuts() {
+  const overlay = document.getElementById("shortcuts-overlay");
+  const openBtn = document.getElementById("shortcuts-btn");
+  if (!overlay || !openBtn) return;
+
+  openBtn.addEventListener("click", () => {
+    overlay.hidden = false;
+    refreshShortcutLabels();
+  });
+  document.getElementById("shortcuts-close").addEventListener("click", closeShortcutsModal);
+  document.getElementById("shortcuts-reset").addEventListener("click", () => {
+    gridShortcuts = {
+      new: { ...SHORTCUT_DEFAULTS.new },
+      edit: { ...SHORTCUT_DEFAULTS.edit },
+      spotify: { ...SHORTCUT_DEFAULTS.spotify },
+    };
+    stopRecording();
+    saveGridShortcuts();
+    refreshShortcutLabels();
+  });
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) closeShortcutsModal();
+  });
+
+  for (const action of Object.keys(SHORTCUT_DEFAULTS)) {
+    const recorder = document.getElementById(`recorder-${action}`);
+    if (!recorder) continue;
+    recorder.addEventListener("click", () => {
+      if (recordingAction === action) return;
+      stopRecording();
+      recordingAction = action;
+      recorder.classList.add("recording");
+      recorder.textContent = "PRESS KEYS…";
+    });
+  }
+
+  document.addEventListener("keydown", handleShortcutKeydown, true);
+  refreshShortcutLabels();
+}
+
+function closeShortcutsModal() {
+  stopRecording();
+  const overlay = document.getElementById("shortcuts-overlay");
+  if (overlay) overlay.hidden = true;
+}
+
+function stopRecording() {
+  if (!recordingAction) return;
+  const recorder = document.getElementById(`recorder-${recordingAction}`);
+  if (recorder) recorder.classList.remove("recording");
+  recordingAction = null;
+  refreshShortcutLabels();
+}
+
+function handleShortcutKeydown(e) {
+  const shortcutsOverlay = document.getElementById("shortcuts-overlay");
+  const editorOverlay = document.getElementById("playlist-editor-overlay");
+
+  // A recorder is capturing: the next non-modifier key becomes the shortcut.
+  if (recordingAction) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (["Meta", "Control", "Alt", "Shift"].includes(e.key)) return; // wait for a real key
+    if (e.key === "Escape") {
+      stopRecording();
+      return;
+    }
+    gridShortcuts[recordingAction] = {
+      key: e.key, meta: e.metaKey, ctrl: e.ctrlKey, alt: e.altKey, shift: e.shiftKey,
+    };
+    saveGridShortcuts();
+    stopRecording();
+    return;
+  }
+
+  // Esc closes the shortcuts modal
+  if (shortcutsOverlay && !shortcutsOverlay.hidden) {
+    if (e.key === "Escape") closeShortcutsModal();
+    return; // no shortcuts fire while the modal is open
+  }
+
+  // Don't fire while typing or while the editor modal is open
+  if (editorOverlay && !editorOverlay.hidden) return;
+  const t = e.target;
+  if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+
+  if (matchesShortcut(e, gridShortcuts.new)) {
+    e.preventDefault();
+    openEditor("add");
+  } else if (matchesShortcut(e, gridShortcuts.edit)) {
+    e.preventDefault();
+    toggleEditMode();
+  } else if (matchesShortcut(e, gridShortcuts.spotify)) {
+    e.preventDefault();
+    toggleSpotifyMode();
+  }
 }
 
 async function loadSpotifyPlaylistsForPicker(refresh = false) {

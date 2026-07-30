@@ -1,6 +1,8 @@
 import os
+import re
 import json
 import time
+import subprocess
 import threading
 from flask import Flask, jsonify, request, send_from_directory, redirect, session
 import spotipy
@@ -649,6 +651,27 @@ def get_extracted_color():
     except Exception as e:
         print(f"Error extracting color: {e}")
         return jsonify({'r': 0, 'g': 0, 'b': 0, 'error': str(e)})
+
+
+@app.route('/api/open-in-spotify', methods=['POST'])
+def open_in_spotify():
+    """Open a playlist in the Spotify desktop app.
+
+    The Flask server always runs on the same Mac as the browser/WebView, so a
+    local `open spotify:playlist:<id>` reliably reaches the desktop app from
+    both the native wrapper and a regular browser tab.
+    """
+    data = request.json or {}
+    playlist_id = (data.get('playlist_id') or '').strip()
+    if not re.fullmatch(r'[A-Za-z0-9]+', playlist_id):
+        return jsonify({"error": "Invalid playlist id"}), 400
+    try:
+        subprocess.run(['open', f'spotify:playlist:{playlist_id}'],
+                       check=True, timeout=10)
+        return jsonify({"success": True})
+    except Exception as e:
+        print(f"Error opening playlist in Spotify: {e}")
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route('/api/toggle-repeat', methods=['POST'])

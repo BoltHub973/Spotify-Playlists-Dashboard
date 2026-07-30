@@ -1267,6 +1267,86 @@ body.tracker-page .sidebar-toggle:focus-visible {
   box-shadow: 0 0 12px rgba(0, 243, 255, 0.35);
 }
 
+/* Header buttons: label + keycap hint layout */
+.grid-header-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.grid-header-btn .btn-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.grid-header-btn .btn-icon {
+  width: clamp(11px, 0.9vw, 15px);
+  height: clamp(11px, 0.9vw, 15px);
+  fill: currentColor;
+  flex-shrink: 0;
+}
+
+.grid-header-btn.icon-only {
+  padding: 4px 8px;
+}
+.grid-header-btn.icon-only .btn-icon {
+  width: clamp(14px, 1.1vw, 18px);
+  height: clamp(14px, 1.1vw, 18px);
+  fill: none;
+}
+
+.btn-key {
+  font-family: "JetBrains Mono", var(--font-heading), monospace;
+  font-size: clamp(0.55rem, 0.62vw, 0.72rem);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.5);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 3px;
+  padding: 3px 5px;
+  white-space: nowrap;
+}
+
+.grid-header-btn:hover .btn-key {
+  color: inherit;
+  border-color: currentColor;
+}
+.grid-header-btn.active .btn-key {
+  color: inherit;
+  border-color: currentColor;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+/* Spotify mode: brand-green treatment so the mode reads instantly */
+#spotify-mode-btn:hover {
+  color: #1db954;
+  border-color: rgba(29, 185, 84, 0.6);
+  background: rgba(29, 185, 84, 0.08);
+}
+
+#spotify-mode-btn.active {
+  color: #1ed760;
+  border-color: #1db954;
+  background: rgba(29, 185, 84, 0.12);
+  box-shadow: 0 0 12px rgba(29, 185, 84, 0.45);
+}
+
+/* Spotify mode: tiles read as "click to open in Spotify" */
+body.spotify-mode .playlist-item {
+  border-color: rgba(29, 185, 84, 0.4);
+}
+
+body.spotify-mode .playlist-item:hover {
+  border-color: #1ed760;
+  background: rgba(29, 185, 84, 0.12);
+  box-shadow: 0 4px 15px rgba(29, 185, 84, 0.25);
+}
+
+
 /* Edit mode: tiles read as editable, not clickable-to-save */
 body.edit-mode .playlist-item {
   position: relative;
@@ -1489,6 +1569,87 @@ body.edit-mode .playlist-item .playlist-name {
 }
 
 /* ============================================
+   Keyboard Shortcuts Modal
+   ============================================ */
+.shortcuts-modal {
+  width: min(480px, 92vw);
+}
+
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: clamp(10px, 1.2vh, 14px) 2px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.shortcut-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.shortcut-name {
+  font-family: var(--font-heading);
+  font-size: clamp(0.8rem, 0.9vw, 1rem);
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--text-primary);
+}
+
+.shortcut-desc {
+  font-family: var(--font-body);
+  font-size: clamp(0.85rem, 0.95vw, 1.05rem);
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.shortcut-recorder {
+  font-family: "JetBrains Mono", var(--font-heading), monospace;
+  font-size: clamp(0.85rem, 0.95vw, 1.05rem);
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  min-width: 96px;
+  padding: 9px 14px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.shortcut-recorder:hover {
+  border-color: var(--neon-green);
+  box-shadow: 0 0 10px rgba(132, 255, 0, 0.25);
+}
+
+.shortcut-recorder.recording {
+  color: var(--neon-cyan);
+  border-color: var(--neon-cyan);
+  background: rgba(0, 243, 255, 0.08);
+  box-shadow: 0 0 14px rgba(0, 243, 255, 0.4);
+  animation: recorderPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes recorderPulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(0, 243, 255, 0.25); }
+  50% { box-shadow: 0 0 18px rgba(0, 243, 255, 0.55); }
+}
+
+.shortcuts-note {
+  font-family: var(--font-body);
+  font-size: clamp(0.85rem, 0.95vw, 1rem);
+  font-weight: 500;
+  color: var(--text-secondary);
+  padding-top: clamp(12px, 1.4vh, 16px);
+  line-height: 1.5;
+}
+
+/* ============================================
    Toast Notifications
    ============================================ */
 #toast-container {
@@ -1526,4 +1687,10 @@ body.edit-mode .playlist-item .playlist-name {
 .toast.show {
   opacity: 1;
   transform: translateY(0);
+}
+
+.toast.error {
+  border-color: rgba(255, 77, 109, 0.7);
+  box-shadow: 0 0 14px rgba(255, 77, 109, 0.35), 0 4px 18px rgba(0, 0, 0, 0.5);
+  color: #ff4d6d;
 }
