@@ -757,27 +757,16 @@ function renderPlaylists() {
       .filter((p) => !p.isActive)
       .sort((a, b) => a.name.localeCompare(b.name));
 
-    // Mono section header with a live count, e.g. "CONTAINS TRACK · 03"
-    const mkSectionHead = (label, count) => {
-      const head = document.createElement("div");
-      head.className = "grid-section-head";
-      const b = document.createElement("b");
-      b.textContent = `${label} · ${String(count).padStart(2, "0")}`;
-      head.appendChild(b);
-      return head;
-    };
-
     // Render Active Group (Column Layout)
     // NOTE: gridTemplateRows must be set explicitly so that grid-auto-flow: column
     // knows how many rows to fill before wrapping to the next column.
     // This ensures playlists are alphabetically sorted TOP-TO-BOTTOM within each column.
     if (activePlaylists.length > 0) {
-      grid.appendChild(mkSectionHead("CONTAINS TRACK", activePlaylists.length));
       const activeGroup = document.createElement("div");
       activeGroup.className = "active-group";
       const activeRowCount = Math.ceil(activePlaylists.length / 3);
       // minmax(0, 1fr) lets rows compress below content height when the
-      // section headers tighten the vertical budget
+      // vertical budget tightens
       activeGroup.style.gridTemplateRows = `repeat(${activeRowCount}, minmax(0, 1fr))`;
       activePlaylists.forEach((p) => activeGroup.appendChild(createItem(p)));
       grid.appendChild(activeGroup);
@@ -795,7 +784,6 @@ function renderPlaylists() {
     // knows how many rows to fill before wrapping to the next column.
     // This ensures playlists are alphabetically sorted TOP-TO-BOTTOM within each column.
     if (inactivePlaylists.length > 0) {
-      grid.appendChild(mkSectionHead("ADD TO", inactivePlaylists.length));
       const inactiveGroup = document.createElement("div");
       inactiveGroup.className = "inactive-group";
       const rowCount = Math.ceil(inactivePlaylists.length / 3);

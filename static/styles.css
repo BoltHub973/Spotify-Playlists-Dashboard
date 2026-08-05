@@ -1957,27 +1957,6 @@ body.edit-mode .playlist-item .playlist-name {
    designed states, and the Daybreak overrides (07-29-26)
    ════════════════════════════════════════════════════════════ */
 
-/* Grid section headers — "CONTAINS TRACK · 03" / "ADD TO · 58" */
-.grid-section-head {
-  font-family: var(--font-mono);
-  font-size: clamp(0.82rem, 0.85vw, 0.95rem);
-  font-weight: 500;
-  letter-spacing: 2.5px;
-  color: var(--text-secondary);
-  padding: clamp(2px, 0.4vh, 6px) 2px;
-  flex-shrink: 0;
-  font-variant-numeric: tabular-nums;
-}
-
-.grid-section-head b {
-  font-weight: 500;
-  color: var(--neon-cyan);
-}
-
-.grid-section-head:has(+ .active-group) b {
-  color: var(--neon-green);
-}
-
 /* Mode banner — states exactly what a click will do while a mode is armed */
 .mode-banner {
   font-family: var(--font-mono);
