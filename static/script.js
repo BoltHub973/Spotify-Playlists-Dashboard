@@ -1487,6 +1487,8 @@ function initPlaylistEditor() {
   editBtn.addEventListener("click", toggleEditMode);
   addBtn.addEventListener("click", () => openEditor("add"));
   if (spotifyBtn) spotifyBtn.addEventListener("click", toggleSpotifyMode);
+  const cancelBtn = document.getElementById("cancel-mode-btn");
+  if (cancelBtn) cancelBtn.addEventListener("click", cancelArmedMode);
 
   document.getElementById("editor-cancel").addEventListener("click", closeEditor);
   document.getElementById("editor-save").addEventListener("click", saveEditor);
@@ -1528,9 +1530,24 @@ function setSpotifyMode(on) {
   renderPlaylists();
 }
 
+// Escape hatch out of edit / spotify mode — the CANCEL button, its shortcut
+// (C by default) and Esc all land here. Tile edits and removals are written
+// through as they happen, so this leaves the mode rather than undoing them.
+function cancelArmedMode() {
+  if (editMode) toggleEditMode();
+  else if (spotifyMode) setSpotifyMode(false);
+}
+
+// CANCEL only exists while a mode is armed — nothing to cancel otherwise.
+function updateCancelButton() {
+  const btn = document.getElementById("cancel-mode-btn");
+  if (btn) btn.hidden = !(editMode || spotifyMode);
+}
+
 // Labeled strip under the toolbar while a mode is armed, so a click's
 // meaning is never a surprise.
 function updateModeBanner() {
+  updateCancelButton();
   const banner = document.getElementById("mode-banner");
   if (!banner) return;
   if (editMode) {
@@ -1560,6 +1577,7 @@ const SHORTCUTS_STORAGE_KEY = "gridShortcuts.v1";
 const SHORTCUT_DEFAULTS = {
   new: { key: "n", meta: false, ctrl: false, alt: false, shift: false },
   edit: { key: "e", meta: false, ctrl: false, alt: false, shift: false },
+  cancel: { key: "c", meta: false, ctrl: false, alt: false, shift: false },
   spotify: { key: "s", meta: false, ctrl: false, alt: false, shift: false },
   theme: { key: "l", meta: true, ctrl: false, alt: false, shift: true },
 };
@@ -1622,6 +1640,7 @@ function refreshShortcutLabels() {
   const tips = {
     new: ["add-playlist-btn", "Add a playlist tile"],
     edit: ["edit-mode-btn", "Toggle edit mode"],
+    cancel: ["cancel-mode-btn", "Leave the armed mode — Esc does this too"],
     spotify: ["spotify-mode-btn", "Toggle open-in-Spotify mode — clicking a playlist opens it in the Spotify app"],
   };
   for (const action of Object.keys(tips)) {
@@ -1748,7 +1767,18 @@ function handleShortcutKeydown(e) {
   const isGridPage = document.getElementById("add-playlist-btn") !== null;
   if (!isGridPage) return;
 
-  if (matchesShortcut(e, gridShortcuts.new)) {
+  // Esc is the always-on twin of the CANCEL button; the customizable CANCEL
+  // shortcut only fires while there is a mode to leave.
+  if (e.key === "Escape" && (editMode || spotifyMode)) {
+    e.preventDefault();
+    cancelArmedMode();
+    return;
+  }
+
+  if (matchesShortcut(e, gridShortcuts.cancel) && (editMode || spotifyMode)) {
+    e.preventDefault();
+    cancelArmedMode();
+  } else if (matchesShortcut(e, gridShortcuts.new)) {
     e.preventDefault();
     openEditor("add");
   } else if (matchesShortcut(e, gridShortcuts.edit)) {

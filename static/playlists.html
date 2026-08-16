@@ -55,6 +55,10 @@
           <button id="edit-mode-btn" class="grid-header-btn" type="button">
             <span class="btn-label">✎ EDIT</span><kbd class="btn-key" id="key-hint-edit">E</kbd>
           </button>
+          <!-- Only rendered while a mode is armed — Esc triggers it too -->
+          <button id="cancel-mode-btn" class="grid-header-btn cancel" type="button" hidden>
+            <span class="btn-label">✕ CANCEL</span><kbd class="btn-key" id="key-hint-cancel">C</kbd>
+          </button>
           <button id="spotify-mode-btn" class="grid-header-btn" type="button">
             <span class="btn-label"><svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.586 14.424a.622.622 0 0 1-.857.207c-2.348-1.435-5.304-1.76-8.785-.964a.622.622 0 1 1-.277-1.215c3.809-.87 7.077-.496 9.712 1.115.293.18.386.563.207.857zm1.223-2.723a.78.78 0 0 1-1.072.257c-2.687-1.652-6.785-2.131-9.965-1.166A.779.779 0 1 1 6.32 11.3c3.632-1.102 8.147-.568 11.234 1.328a.78.78 0 0 1 .255 1.073zm.105-2.835C14.692 8.95 9.375 8.775 6.297 9.71a.935.935 0 1 1-.543-1.79c3.532-1.072 9.404-.865 13.115 1.338a.936.936 0 0 1-.955 1.608z"/></svg> SPOTIFY</span><kbd class="btn-key" id="key-hint-spotify">S</kbd>
           </button>
@@ -167,6 +171,14 @@
             <span class="shortcut-desc">Toggle edit mode on the grid</span>
           </div>
           <button class="shortcut-recorder" id="recorder-edit" type="button" title="Click, then press the new shortcut. Esc cancels.">E</button>
+        </div>
+
+        <div class="shortcut-row">
+          <div class="shortcut-info">
+            <span class="shortcut-name">CANCEL</span>
+            <span class="shortcut-desc">Leave the armed mode (Esc always works too)</span>
+          </div>
+          <button class="shortcut-recorder" id="recorder-cancel" type="button" title="Click, then press the new shortcut. Esc cancels.">C</button>
         </div>
 
         <div class="shortcut-row">

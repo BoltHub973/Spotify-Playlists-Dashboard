@@ -19,6 +19,9 @@ dist/
 build/
 venv/
 .venv/
+# scripts/dashboard-open.sh links .venv into a worktree as a SYMLINK, which the
+# directory-only pattern above doesn't match
+.venv
 env/
 
 # Claude Code worktrees

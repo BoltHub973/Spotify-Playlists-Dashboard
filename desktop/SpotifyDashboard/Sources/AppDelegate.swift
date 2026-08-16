@@ -29,6 +29,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // Keep the dispatch signal sources alive for the app's lifetime.
     private var terminationSignalSources: [DispatchSourceSignal] = []
 
+    private var versionMenuController: VersionMenuController?
+
+    // Set by a launcher that must not steal focus (scripts/dashboard-open.sh
+    // --background, tooling that relaunches the app while you work elsewhere).
+    // One-shot: only the launch-time window show is silent — everything the
+    // user triggers afterwards activates normally.
+    private var isBackgroundLaunch =
+        ProcessInfo.processInfo.environment["SPOTIFY_DASHBOARD_BACKGROUND_LAUNCH"] != nil
+
     private var isMenuBarMode: Bool {
         get { UserDefaults.standard.bool(forKey: "menuBarMode") }
         set { UserDefaults.standard.set(newValue, forKey: "menuBarMode") }
@@ -285,6 +294,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             mainWindow.setFrame(screen.visibleFrame, display: true)
         }
 
+        if isBackgroundLaunch {
+            isBackgroundLaunch = false
+            // Order in behind whatever the user is working in — skipping
+            // activate alone still leaves the window covering the front app.
+            mainWindow.orderBack(nil)
+            return
+        }
+
         mainWindow.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -395,6 +412,40 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         appMenuItem.submenu = appMenu
         mainMenu.addItem(appMenuItem)
 
+        // Edit menu — required for text input to behave like a Mac app.
+        // Without it AppKit gives the web view no editing key equivalents, so
+        // ⌘X/⌘C/⌘V/⌘A and ⌃⌘Space (Emoji & Symbols) all did nothing inside the
+        // playlist editor's fields — which is why emoji couldn't be typed or
+        // pasted into a display name. Actions dispatch through the responder
+        // chain (target = nil), so WKWebView handles them for the focused field.
+        let editMenuItem = NSMenuItem()
+        let editMenu = NSMenu(title: "Edit")
+        editMenu.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
+        let redoItem = NSMenuItem(title: "Redo", action: Selector(("redo:")), keyEquivalent: "z")
+        redoItem.keyEquivalentModifierMask = [.command, .shift]
+        editMenu.addItem(redoItem)
+        editMenu.addItem(NSMenuItem.separator())
+        editMenu.addItem(withTitle: "Cut", action: Selector(("cut:")), keyEquivalent: "x")
+        editMenu.addItem(withTitle: "Copy", action: Selector(("copy:")), keyEquivalent: "c")
+        editMenu.addItem(withTitle: "Paste", action: Selector(("paste:")), keyEquivalent: "v")
+        let pasteMatchItem = NSMenuItem(title: "Paste and Match Style",
+                                        action: Selector(("pasteAsPlainText:")),
+                                        keyEquivalent: "v")
+        pasteMatchItem.keyEquivalentModifierMask = [.command, .option, .shift]
+        editMenu.addItem(pasteMatchItem)
+        editMenu.addItem(withTitle: "Delete", action: Selector(("delete:")), keyEquivalent: "")
+        editMenu.addItem(withTitle: "Select All", action: Selector(("selectAll:")), keyEquivalent: "a")
+        editMenu.addItem(NSMenuItem.separator())
+        // Added explicitly (and AppKit's automatic copy suppressed in Info.plist
+        // via NSDisabledCharacterPaletteMenuItem) so the palette is always there.
+        let emojiItem = NSMenuItem(title: "Emoji & Symbols",
+                                   action: #selector(NSApplication.orderFrontCharacterPalette(_:)),
+                                   keyEquivalent: " ")
+        emojiItem.keyEquivalentModifierMask = [.control, .command]
+        editMenu.addItem(emojiItem)
+        editMenuItem.submenu = editMenu
+        mainMenu.addItem(editMenuItem)
+
         // View menu
         let viewMenuItem = NSMenuItem()
         let viewMenu = NSMenu(title: "View")
@@ -428,6 +479,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         windowMenu.addItem(withTitle: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         windowMenuItem.submenu = windowMenu
         mainMenu.addItem(windowMenuItem)
+
+        // Version menu — which checkout this window is actually serving, and how
+        // recently that code changed. Last in the bar so it reads as status.
+        versionMenuController = VersionMenuController(projectRoot: backendManager.projectRoot)
+        mainMenu.addItem(versionMenuController!.menuItem)
 
         NSApp.mainMenu = mainMenu
     }

@@ -124,6 +124,7 @@ SWIFT_FILES=(
     "$SOURCES_DIR/HotkeyManager.swift"
     "$SOURCES_DIR/ShortcutRecorderView.swift"
     "$SOURCES_DIR/SettingsWindowController.swift"
+    "$SOURCES_DIR/VersionMenuController.swift"
     "$SOURCES_DIR/AppleScriptCommands.swift"
 )
 
@@ -147,7 +148,15 @@ codesign --force --sign - "$APP_BUNDLE"
 echo "[4/5] Installing to ${INSTALL_DIR}..."
 if rm -rf "$INSTALLED_APP" 2>/dev/null && ditto "$APP_BUNDLE" "$INSTALLED_APP" 2>/dev/null; then
     codesign --force --sign - "$INSTALLED_APP" 2>/dev/null || true
-    echo "Installed: $INSTALLED_APP"
+    # Leave exactly ONE "Spotify Dashboard.app" on disk. The staging copy is a
+    # second bundle carrying the same identifier, so LaunchServices (and anything
+    # that resolves the app by name — AppleScript, Keyboard Maestro, Spotlight,
+    # Raycast) can pick it and launch a stale build. Drop it, then re-register the
+    # installed copy so every launcher resolves to this build.
+    rm -rf "$APP_BUNDLE"
+    LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
+    [ -x "$LSREGISTER" ] && "$LSREGISTER" -f "$INSTALLED_APP" >/dev/null 2>&1 || true
+    echo "Installed: $INSTALLED_APP  (staging copy removed — /Applications is the only bundle)"
     FINAL_APP="$INSTALLED_APP"
 else
     echo "WARNING: could not write to ${INSTALL_DIR} (admin rights may be required)."

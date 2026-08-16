@@ -1531,6 +1531,24 @@ body.tracker-page .sidebar-toggle:focus-visible {
   gap: 8px;
 }
 
+/* The rule above beats the UA's [hidden] {display:none}, so restore it —
+   the CANCEL button is hidden until a mode is armed. */
+.grid-header-btn[hidden] {
+  display: none;
+}
+
+/* CANCEL: the way out of an armed mode, tinted away from the green/cyan
+   affirmative buttons so it never reads as "apply". */
+.grid-header-btn.cancel:hover {
+  color: var(--status-error);
+  border-color: var(--status-error);
+  background: rgba(255, 77, 109, 0.1);
+}
+
+body.theme-light .grid-header-btn.cancel:hover {
+  background: rgba(201, 23, 74, 0.1);
+}
+
 .grid-header-btn .btn-label {
   display: inline-flex;
   align-items: center;
