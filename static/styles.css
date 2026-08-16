@@ -200,8 +200,11 @@ body {
   white-space: nowrap;
 }
 
-/* Theme toggle — sun while dark, moon while light (the theme you'll GET) */
-.theme-toggle {
+/* Header icon buttons — the theme toggle (sun while dark, moon while light:
+   the theme you'll GET) and the sidebar auto-reveal switch. One box so the
+   header glyphs read as a set. */
+.theme-toggle,
+.sidebar-auto-toggle {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -217,24 +220,42 @@ body {
   transition: color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.theme-toggle svg {
+.theme-toggle svg,
+.sidebar-auto-toggle svg {
   width: 62%;
   height: 62%;
 }
 
-.theme-toggle:hover {
+.theme-toggle:hover,
+.sidebar-auto-toggle:hover {
   color: var(--page-accent);
   border-color: rgba(var(--page-accent-rgb), 0.45);
   box-shadow: 0 0 10px rgba(var(--page-accent-rgb), 0.25);
 }
 
-.theme-toggle:focus-visible {
+.theme-toggle:focus-visible,
+.sidebar-auto-toggle:focus-visible {
   outline: 2px solid var(--page-accent);
   outline-offset: 2px;
 }
 
-body.theme-light .theme-toggle {
+body.theme-light .theme-toggle,
+body.theme-light .sidebar-auto-toggle {
   color: rgba(20, 28, 10, 0.55);
+}
+
+/* Auto-reveal armed — the panel glyph fills with the page accent and stays lit */
+.sidebar-auto-toggle.active,
+body.theme-light .sidebar-auto-toggle.active {
+  color: var(--page-accent);
+  border-color: rgba(var(--page-accent-rgb), 0.35);
+  box-shadow: 0 0 10px rgba(var(--page-accent-rgb), 0.2);
+}
+
+/* Equal specificity to .active, so hover still reads on an armed button */
+.sidebar-auto-toggle.active:hover {
+  border-color: rgba(var(--page-accent-rgb), 0.45);
+  box-shadow: 0 0 10px rgba(var(--page-accent-rgb), 0.25);
 }
 
 /* The sidebar overlays the full window height, header included — shift the

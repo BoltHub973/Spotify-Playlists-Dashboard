@@ -878,7 +878,8 @@ async function togglePlaylist(playlist) {
         );
       }
 
-      // Trigger sidebar on ADD only (Playlists & Tracker pages)
+      // Trigger sidebar on ADD only (Playlists & Tracker pages), and only when
+      // auto-reveal is armed — an already-open sidebar still refreshes.
       if (action === "add" && !isQueue && currentTrack) {
         // Tracker adds auto-follow the main artist server-side; patch any
         // cached sidebar entry so its follow button isn't stale
@@ -888,7 +889,7 @@ async function togglePlaylist(playlist) {
           if (cached && cached !== "empty") cached.is_following = true;
           showToast(`Now following ${mainArtist}`);
         }
-        showArtistSidebar(currentTrack);
+        if (sidebarAutoReveal || sidebarState.isOpen) showArtistSidebar(currentTrack);
       }
     }
   } catch (e) {
@@ -963,6 +964,52 @@ let sidebarState = {
   isFollowing: false,
 };
 
+// ============================================
+// Sidebar auto-reveal — header button on every page that has a sidebar.
+// Governs whether the sidebar exposes ITSELF (on an add); opening it by hand
+// (header button, edge handle, ⌘S) always works either way. Persisted, so the
+// choice carries across pages and reloads.
+// ============================================
+const SIDEBAR_AUTO_KEY = "sidebarAutoReveal";
+let sidebarAutoReveal = true;
+try {
+  if (localStorage.getItem(SIDEBAR_AUTO_KEY) === "off") sidebarAutoReveal = false;
+} catch (e) { /* storage unavailable — stay auto */ }
+
+function applySidebarAuto(on) {
+  sidebarAutoReveal = !!on;
+  try {
+    localStorage.setItem(SIDEBAR_AUTO_KEY, sidebarAutoReveal ? "on" : "off");
+  } catch (e) { /* nonfatal */ }
+  updateSidebarAutoUI();
+}
+
+// Filled panel = comes out on its own; dashed outline = manual only.
+function updateSidebarAutoUI() {
+  const btn = document.getElementById("sidebar-auto-toggle");
+  const icon = document.getElementById("sidebar-auto-toggle-icon");
+  if (!btn || !icon) return;
+  const frame = '<rect x="3" y="4" width="18" height="16" rx="2"/>';
+  icon.innerHTML = sidebarAutoReveal
+    ? frame + '<path d="M14 4h5a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-5z" fill="currentColor" stroke="none"/>'
+    : frame + '<line x1="14" y1="4" x2="14" y2="20" stroke-dasharray="2.5 2.5"/>';
+  btn.classList.toggle("active", sidebarAutoReveal);
+  btn.setAttribute("aria-pressed", sidebarAutoReveal ? "true" : "false");
+  const label = sidebarAutoReveal
+    ? "Sidebar reveals itself on add — click to keep it closed"
+    : "Sidebar stays closed — click to reveal it automatically";
+  btn.title = label;
+  btn.setAttribute("aria-label", label);
+}
+
+// Flipping the switch also acts on the sidebar now, so the setting is legible
+// the moment you press it.
+function toggleSidebarAuto() {
+  applySidebarAuto(!sidebarAutoReveal);
+  if (sidebarAutoReveal !== sidebarState.isOpen) toggleSidebar();
+  showToast(sidebarAutoReveal ? "Sidebar auto-reveal ON" : "Sidebar auto-reveal OFF");
+}
+
 /**
  * Initialize sidebar toggle and event listeners
  */
@@ -974,6 +1021,10 @@ function initSidebar() {
   toggleBtn.addEventListener("click", () => {
     toggleSidebar();
   });
+
+  const autoBtn = document.getElementById("sidebar-auto-toggle");
+  if (autoBtn) autoBtn.addEventListener("click", toggleSidebarAuto);
+  updateSidebarAutoUI();
 
   // Fetch queue playlists for sidebar use
   fetchQueuePlaylistsForSidebar();
