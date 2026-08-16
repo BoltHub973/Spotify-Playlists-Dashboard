@@ -196,6 +196,12 @@ echo ""
 echo "To run: open \"$FINAL_APP\""
 echo "Or use: ./run.sh (from the desktop/ directory)"
 
+# Debug worktree menu item — standard on every Mac app.
+# Prints nothing once the menu is installed. See ~/.claude/skills/mac-worktree-menu.
+_wtm_check="$HOME/.claude/skills/mac-worktree-menu/check.sh"
+[ -x "$_wtm_check" ] && "$_wtm_check" "$(dirname "$0")" || true
+
+
 # ── Optional relaunch ────────────────────────────────────────────────────────
 # Delegated to dashboard-open.sh (see the header note). Prefer this checkout's
 # copy so a branch that changes the launcher tests its own version; fall back to
