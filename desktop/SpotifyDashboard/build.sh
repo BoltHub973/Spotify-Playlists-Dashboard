@@ -5,10 +5,27 @@
 #
 # Prerequisites: Xcode Command Line Tools (xcode-select --install)
 #
-# Usage: ./build.sh
+# Usage:
+#   ./build.sh              # build + install to /Applications
+#   ./build.sh --relaunch   # …then restart the app on THIS checkout, in the
+#                           # background (never steals focus)
+#
+# --relaunch hands off to scripts/dashboard-open.sh rather than quitting and
+# reopening the app itself: that script already waits for the process to exit
+# AND for port 8888 to close before relaunching, and its stale-binary check
+# (installed executable newer than the running app) is exactly the case a
+# rebuild creates. Rolling our own here would be a second, worse copy of it.
 #
 
 set -e
+
+RELAUNCH=0
+for arg in "$@"; do
+    case "$arg" in
+        --relaunch) RELAUNCH=1 ;;
+        *) echo "Unknown option: $arg (usage: $0 [--relaunch])" >&2; exit 2 ;;
+    esac
+done
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SOURCES_DIR="$SCRIPT_DIR/Sources"
@@ -38,6 +55,12 @@ if [ -n "$MAIN_REPO_ROOT" ]; then
 else
     PROJECT_ROOT_STAMP="$(cd "$SCRIPT_DIR/../.." && pwd)"
 fi
+
+# The checkout this build was run FROM — a worktree here, unlike the stamp
+# above, which is always main. --relaunch serves this one, so building in a
+# branch and relaunching shows that branch's code.
+CHECKOUT_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || true)"
+[ -n "$CHECKOUT_ROOT" ] || CHECKOUT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 APP_NAME="Spotify Dashboard"
 BUNDLE_NAME="SpotifyDashboard"
@@ -172,3 +195,31 @@ echo "Size: $(du -sh "$FINAL_APP" | cut -f1)"
 echo ""
 echo "To run: open \"$FINAL_APP\""
 echo "Or use: ./run.sh (from the desktop/ directory)"
+
+# ── Optional relaunch ────────────────────────────────────────────────────────
+# Delegated to dashboard-open.sh (see the header note). Prefer this checkout's
+# copy so a branch that changes the launcher tests its own version; fall back to
+# main's for branches that predate the script.
+if [ "$RELAUNCH" -eq 1 ]; then
+    if [ "$FINAL_APP" != "$INSTALLED_APP" ]; then
+        echo "" >&2
+        echo "ERROR: --relaunch skipped — the build never reached ${INSTALL_DIR}," >&2
+        echo "       so relaunching would just start the old installed build." >&2
+        exit 1
+    fi
+
+    LAUNCHER="$CHECKOUT_ROOT/scripts/dashboard-open.sh"
+    [ -x "$LAUNCHER" ] || LAUNCHER="${MAIN_REPO_ROOT:-$CHECKOUT_ROOT}/scripts/dashboard-open.sh"
+    if [ ! -x "$LAUNCHER" ]; then
+        echo "" >&2
+        echo "ERROR: --relaunch needs scripts/dashboard-open.sh, not found at:" >&2
+        echo "       $LAUNCHER" >&2
+        exit 1
+    fi
+
+    echo ""
+    echo "Relaunching (background) on: $CHECKOUT_ROOT"
+    # exec so the launcher's exit status is this script's — a failed relaunch
+    # fails the build command, instead of reporting a success that didn't happen.
+    exec "$LAUNCHER" "$CHECKOUT_ROOT" --background
+fi
